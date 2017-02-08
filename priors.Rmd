@@ -18,7 +18,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-The purpose of this note is two-fold. First, we want to emperically explore how prior distributions influence posterior distributions. Second, we want to explore the trade-off between model complexity and big data. Most techiques taught in Statistics deal with naive models and small data, while the machine learning community tends to deal with simple models and large data. Within machine learning, the deep learning community has been able to find solutions involving big data albiet at the expense of sacraficing model transparency. Bayesian approaches are particularly useful at capturing uncertainty with sparse data and complex models. With implementations like [Stan](mc-stan.org), Bayesian methods are heading in a direction which will allow efficient computation on big data without without losing the transparency of declaring your model.  
+The purpose of this note is two-fold. First, we want to empirically explore how prior distributions influence posterior distributions. Second, we want to explore the trade-off between model complexity and big data. Most techiques taught in Statistics deal with naive models and small data, while the machine learning community tends to deal with simple models and large amounts of data. Bayesian approaches are particularly useful at capturing uncertainty in the parameters, with sparse data and complex models. With implementations like [Stan](mc-stan.org), Bayesian methods are heading in a direction which will allow efficient computation on big data without without losing the transparency of directly specifying your model.  
+
 <br>
 
 <!---
@@ -50,11 +51,11 @@ arrows(0.6,0.9,0.9,0.9, lwd = 2, col = "#971818", length = 0.1)
 </div>
 </center>
 
-### Belief about the data
+### Belief about the data/model
 
-Assume you have a single observation $y$ that you *believe* has been generated from the binomial distribution according to some unknown probability parameter $\theta$ and some known sample size $n$. For example, you have data on $n$ (Bernoulli) experiments and information on how many of the $n$ experiements resulted in a success, denoted $y$. In addition to the prior distribution being bound on the closed unit interval [0,1], you might also have some prior knowledge as to the distribution that $\theta$ resides in. This domain specific knowledge might encourage you to believe that $\theta$ is close to some set of values on the closed unit interval. 
+Assume you have a single observation $y$ that you *believe* has been generated from the binomial distribution according to some unknown probability parameter $\theta$ and some known sample size $n$. For example, you have data on $n$ (Bernoulli) experiments and information on how many of the $n$ experiments resulted in a success, denoted $y$. In addition to the prior distribution being bound on the closed unit interval [0,1], you might also have some prior knowledge as to the distribution that $\theta$ comes from. This might arise from domain specific knowledge and might encourage you to believe that $\theta$ is close to (or far from) some set of values on the closed unit interval. 
 
-We can encode our belief about the model and prior information using Bayes' theorem:
+We can specify our belief about the model and prior information using Bayes' theorem:
 $$
 p(\theta | y) = \frac{f(y | \theta)g(\theta)}{\int_{\Omega}f(y | \theta)g(\theta)\ d\theta}
 $$
@@ -65,6 +66,7 @@ $$
 f(y|\theta) = \binom{n}{y}\theta^{y}(1-\theta)^{n-y}
 $$
 
+As [previously discussed](), Frequentists will tend to stop here and will find the [maximum likelihood estimate] for $\theta$.
 
 
 ### Belief about the parameter
