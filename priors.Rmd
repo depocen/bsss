@@ -161,7 +161,7 @@ for(i in 0:8) {
   post_samples[[i+1]] <- binom_beta(x, n, prob, 2 + i , 2)
 }
 par(mfrow=c(1,3))
-plot(prob, post_samples[[1]]$lik, type = "l", col = "darkgrey", lwd = 2, xlab = "x", ylab = "Density",
+plot(prob, post_samples[[1]]$lik, type = "l", col = "darkgrey", lwd = 2, xlab = expression(theta), ylab = "Density",
      main = "Binomial Likelihood", cex.lab = 1.5)
 plot(prob, post_samples[[1]]$prior, type = "l", col = "darkgrey", lwd = 2,
      ylim = c(0,4.5), cex.lab = 1.5,
@@ -314,8 +314,8 @@ for(i in 2:9){
 
 ```{r include=TRUE}
 y <- 0 # rnorm(1, 0, 1)
-mu_grid <- seq(-10, 10, by=0.1)
-sd_grid <- seq(0.1, 10, by=0.1)
+mu_grid <- seq(-10, 10, by=0.01)
+sd_grid <- seq(0.01, 10, by=0.01)
 
 post_norm <- function(y, mu_grid, sd_grid) {
   lik_fun <- function(mu, sd) {               # likelihood function
@@ -341,13 +341,11 @@ post_sd <- sample(sd_grid, size = 10000, replace = TRUE, prob = colSums(post_ful
 ```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=8}
 par(mfrow=c(1,2))
 # marginal dist of mu
-hist(post_mu, col = "darkgrey", border = F, breaks = 50, freq = FALSE,
-     main = paste0("Marginal Posterior of mu"), xlab = expression(mu))
-lines(mu_grid,  apply(post_full, 1, sum), col = "red", lwd = 2)
+plot(mu_grid, apply(post_full, 1, sum), col = "darkgrey", type = "l", lwd = 2, xlim = c(-5,5),
+     main = expression("Marginal Posterior of" ~ mu), xlab = expression(mu), ylab = "Density")
 # marginal dist of sd
-hist(post_sd, col = "darkgrey", border = F, breaks = 20, freq = FALSE,
-     main = paste0("Marginal Posterior of sigma"), xlab = expression(sigma))
-lines(sd_grid,  apply(post_full, 2, sum), col = "red", lwd = 2)
+plot(sd_grid, apply(post_full, 2, sum), col = "darkgrey", type = "l", lwd = 2, xlim = c(0,6),
+     main = expression("Marginal Posterior of" ~ sigma), xlab = expression(sigma), ylab = "Density")
 ```
 
 ## Multiple Observations One Parameter
@@ -358,6 +356,47 @@ lines(sd_grid,  apply(post_full, 2, sum), col = "red", lwd = 2)
 ![](figures/model_tradeoff3.png)</div>
 </center>
 
+```{r include=TRUE}
+remove(list = ls())
+N <- 25
+prior_mu <- rnorm(N, 0, 5)
+y <- rnorm(N, prior_mu, 2)
+mu_grid <- seq(-2, 2, by=0.01)
+# assume standard deviation is known.
+
+post_norm <- function(y, mu_grid, sd) {
+  lik_fun <- function(mu, sd) {               # likelihood function
+    out <- NULL
+    for(i in 1:length(mu)) {
+      out[i] <- prod(dnorm(y, mu[i], sd))
+      }
+    return(out)
+  }
+  lik <- lik_fun(mu_grid, sd)
+  prior <- dnorm(mu_grid, 0, 0.1)               # prior on mu
+  post <- (lik * prior) / sum(lik * prior)    # posterior probability grid
+  return(list("lik" = lik, "prior" = prior, "post" = post))
+}
+
+# evaluate posterior distribution of mu
+post_full <- post_norm(y, mu_grid, sd = 1)
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=3, fig.width=9}
+par(mfrow = c(1,3))
+plot(mu_grid, post_full$lik, col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Likelihood given" ~ mu), xlab = expression(mu), ylab = "Density")
+plot(mu_grid, post_full$prior, col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Prior distribution of" ~ mu), xlab = expression(mu), ylab = "Density")
+plot(mu_grid, post_full$post, col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Posterior distribution of" ~ mu), xlab = expression(mu), ylab = "Density")
+b_est <- mean(sample(mu_grid, 10000, replace = TRUE, prob = post_full$post))
+abline(v = b_est, col = "red", lwd = 2)
+ml_est <- optim(0, function(mu){sum(dnorm(y, mu, 2, log = TRUE))}, control = list(fnscale = -1), method = "BFGS")$par
+abline(v = ml_est, col = "black", lwd = 1, lty = 2)
+legend("topright", c("bayes","mle"), col = c("red","black"), lty = c(1,2), lwd = c(2,1), cex = 0.8, bty = "n")
+```
+
 ## Multiple Observations Multiple Parameters
 
 <br>
@@ -365,3 +404,65 @@ lines(sd_grid,  apply(post_full, 2, sum), col = "red", lwd = 2)
 <div style="width:400px">
 ![](figures/model_tradeoff4.png)</div>
 </center>
+
+```{r results='hide'}
+remove(list = ls())
+N <- 20
+prior_mu <- rnorm(N, 0, 5)
+prior_sd <- NULL
+for(i in 1:N) {
+  prior_sd[i] <- rnorm(1, 0, 1)
+  while(prior_sd[i]<=0)
+    prior_sd[i] <- rnorm(1, 0, 1)
+}
+y <- rnorm(N, prior_mu, prior_sd)
+mu_grid <- seq(-5, 5, by=0.01)
+sd_grid <- seq(0, 10, by=0.01)
+
+post_norm <- function(y, mu_grid, sd_grid) {
+  lik_fun <- function(mu, sd) {                 # likelihood function
+    prod(dnorm(y, mu, sd))
+  }
+  cat('... evaluating likelihood\n')
+  lik <- outer(mu_grid, sd_grid, Vectorize(lik_fun))
+  prior_mu <- dnorm(mu_grid, 0, 1)               # prior on mu
+  prior_sd <- dnorm(sd_grid, 0, 1)               # prior on sd
+  prior <- outer(prior_mu, prior_sd)
+  post <- (lik * prior) / (sum(lik * prior))     # posterior probability grid
+  return(list("lik" = lik, "prior" = prior, "post" = post))
+}
+
+# evaluate the full posterior and the marginal posteriors
+post_full <- post_norm(y, mu_grid, sd_grid)
+post_mu <- apply(post_full$post, 1, sum)
+post_sd <- apply(post_full$post, 2, sum)
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=3, fig.width=9}
+par(mfrow = c(1,3))
+plot(mu_grid, apply(post_full$lik, 1, sum), col = "darkgrey", type = "l", lwd = 2, xlim = c(-5,5),
+     main = expression("Likelihood given" ~ mu), xlab = expression(mu), ylab = "Density")
+ml_est <- optim(c(0,1), function(par){sum(dnorm(y, par[1], par[2], log = TRUE))}, control = list(fnscale = -1))$par
+abline(v = ml_est[1], col = "black", lwd = 1, lty = 2)
+plot(mu_grid, apply(post_full$prior, 1, sum), col = "darkgrey", type = "l", lwd = 2, xlim = c(-5,5),
+     main = expression("Prior distribution of" ~ mu), xlab = expression(mu), ylab = "Density")
+plot(mu_grid, post_mu, col = "darkgrey", type = "l", lwd = 2, xlim = c(-5,5),
+     main = expression("Posterior distribution of" ~ mu), xlab = expression(mu), ylab = "Density")
+b_est <- mean(sample(mu_grid, 10000, replace = TRUE, prob = post_mu ))
+abline(v = b_est, col = "red", lwd = 2)
+abline(v = ml_est[1], col = "black", lwd = 1, lty = 2)
+legend("topleft", c("bayes","mle"), col = c("red","black"), lty = c(1,2), lwd = c(2,1), cex = 0.8, bty = "n")
+
+par(mfrow = c(1,3))
+plot(sd_grid, apply(post_full$lik, 2, sum), col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Likelihood given" ~ sigma), xlab = expression(sigma), ylab = "Density")
+abline(v = ml_est[2], col = "black", lwd = 1, lty = 2)
+plot(sd_grid, apply(post_full$prior, 2, sum), col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Prior distribution of" ~ sigma), xlab = expression(sigma), ylab = "Density")
+plot(sd_grid, post_sd, col = "darkgrey", type = "l", lwd = 2,
+     main = expression("Posterior distribution of" ~ sigma), xlab = expression(sigma), ylab = "Density")
+b_est <- mean(sample(sd_grid, 10000, replace = TRUE, prob = post_sd ))
+abline(v = b_est, col = "red", lwd = 2)
+abline(v = ml_est[2], col = "black", lwd = 1, lty = 2)
+legend("topleft", c("bayes","mle"), col = c("red","black"), lty = c(1,2), lwd = c(2,1), cex = 0.8, bty = "n")
+```
