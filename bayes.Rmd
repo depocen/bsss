@@ -16,22 +16,24 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-A really quick recap of probability followed by Bayes' theorem, the posterior distribution, and maximum likelihood estimation.
+A really quick recap of probability followed by Bayes' theorem, the posterior distribution, and maximum likelihood estimation.  
+
+This [cheatsheet](https://static1.squarespace.com/static/54bf3241e4b0f0d81bf7ff36/t/55e9494fe4b011aed10e48e5/1441352015658/probability_cheatsheet.pdf) is a useful resource and does a good job at covering salient topics in probability. If you are struggling with some of the concepts mentioned there then you can refer to the [textbook](https://www.amazon.com/gp/product/1466575573/ref=as_li_tl?ie=UTF8&camp=1789&creative=390957&creativeASIN=1466575573&linkCode=as2&tag=datascientist-20&linkId=DMC64XQVG4QHMHVQ) that it is based on.
 
 ## Introduction
 
 Before we talk about Bayes' theorem we need to recall some important definitions and concepts in probability theory. If $X$ is a **random variable** then it is a *function* that maps from the sample space to real numbers. For example, in a single coin toss the outcome is getting a heads or a tails. and our random variable $X$ maps these sample space outcomes to real numbers; X(heads) = 1, X(tails) = 0. We often use $P(X=x)$ to represent the probability that the random variable $X$ is equal to a particular value $x$. Continuing with the example, $P(X=1)=0.5$ for a fair coin. We came to this conclusion because $P$ represents a **probability function** that assigns a value to $X=x$ relative to the random variable's mass under the function.
 
-We can have **discrete random variables** and **continuous random variables**. For a discrete random variable we have a **probability mass function** $f(x) = P(X=x)$ that evaluates the probability (mass) associated with a particular realization of a random variable. If we sum across some values of $x$ then we have the probabilty associated with this set of values. Specifically if we sum from $-\infty$ to some value $x$ then we have the **cumulative mass function**, which represents the probability that the random variable is less than or equal to some value $x$. (Note that the CMF is a step function that is not differentiable). For a continuous random variable we start with the **cumulative distribution function** which, analogous to the CMF, evaluates the probability that the random variable is less that or equal to a particular value. Integrating the CDF with respect to the random variable $x$ gives the **probability density function**. The main difference between discrete and continuous random variables is that the the PDF is zero for all continuous random variables, whereas the PMF will actually give a value depending on the mass under the curve for that observation. This is because the PMF is jumping discretely between values where as the PDF has a smooth (continuous) transition from one value to the next. If we are interested in the probability associated with a continuous random variable $x$ then we can use the CDF to evaluate $F(x+\varepsilon) - F(x-\varepsilon)$ where $\varepsilon$ is a small negligible perturbation. Note that PMFs and PDFs are nonnegative, and PMFs sum to 1 whereas PDFs integrate to 1 (over the random variable they are describing).
+We can have **discrete random variables** and **continuous random variables**. For a discrete random variable we have a **probability mass function** $f(x) = P(X=x)$ that evaluates the probability (mass) associated with a particular realization of a random variable. If we sum across some values of $x$ then we have the probabilty associated with this set of values. Specifically if we sum from $-\infty$ to some value $x$ then we have the **cumulative mass function**, which represents the probability that the random variable is less than or equal to some value $x$. (Note that the CMF is a step function that is not differentiable). For a continuous random variable we start with the **cumulative distribution function** which, analogous to the CMF, evaluates the probability that the random variable is less that or equal to a particular value. Differentiating the CDF with respect to the random variable $x$ gives the **probability density function**. The main difference between discrete and continuous random variables is that the the probability of a point is zero for all continuous random variables, whereas the PMF will actually give a probability greater than or equal to zero depending on the mass under the curve for that observation. This is because the PMF is jumping discretely between values where as the PDF has a smooth (continuous) transition from one value to the next. If we are interested in the probability associated with a continuous random variable $x$ then we can use the CDF to evaluate $F(x+\varepsilon) - F(x-\varepsilon)$ where $\varepsilon$ is a small negligible perturbation. Note that PMFs and PDFs are nonnegative, and PMFs sum to 1 whereas PDFs integrate to 1 (over the random variable they are describing).
 
 Below is a list of the main components of a PMF/PDF:  
 
  * **Normalizing constant** - the probability function may require a constant (not a function of the random variable) that allows it to sum/integrate to one.  
- * **Kernel** - the part of the probability function that exclusively depends on the random variable.
+ * **Kernel** - the part of the probability function that depends on the random variable.
  * **Support** - the values of the random variable for which the probability function is defined.
  * **Parameters** - variables that govern features of the probability function (e.g. the shape of the graph of the function).
 
-For example let $x ~ Beta(\alpha,\beta)$. The functional form is as follows,
+For example let $x \sim Beta(\alpha,\beta)$. The functional form is as follows,
 $$
 \big[B(\alpha,\beta)\big]^{-1}x^{\alpha-1}(1-x)^{\beta-1}
 $$
@@ -40,22 +42,23 @@ The kernel of this function is $x^{\alpha-1}(1-x)^{\beta-1}$ and the normalizing
 Some useful properties of distribution functions:
 
 * The derivative of the CDF gives the PDF: $\int_{a}^{x} F_{x}(x)\ dx = f_{x}(x)$, where $a$ is the lower bound of the support.  
-* The joint distribution is equal to the product of the marginal distributions: $f_{xy}(x,y) = f_{x}(x)\cdot f_{y}(y)$
+* The joint distribution is equal to the product of independent marginal distributions: $f_{xy}(x,y) = f_{x}(x)\cdot f_{y}(y)$
 * The conditional distribution requires you to redefine the sample space based on the conditional information: $f_{x|y}(x|y) = f_{xy}(x,y)/f_{y}(y)$.
 * We can eliminate a random variable from the joint distribution by integrating/summing over the variable we want to "marginalize" out of the distribution: $\int_{xy}f(x,y)\ dy = f_{x}(x)$.
 
-We are often interested in the expected value that a probability distribution will generate. The expected value of a PMF/PDF is defined as the sum/integral of the product of the random variable and its associated PMF/PDF over the random variable. 
+We are often interested in the expected value that a probability distribution will generate. The **expected** value of a PMF/PDF is defined as the sum/integral of the product of the random variable and its associated PMF/PDF over the random variable. 
 $$
 \mbox{continuous random variable}\ \implies E[x] = \int_{x\in X} x \cdot f(x)\ dx \\
 \mbox{discrete random variable}\ \implies E[x] = \sum_x x \cdot f(x)
 $$
-This can be thought of as weighting the random variable by its corresponding mass (or frequency of occurance). The mean (in the traditional sense) is a special case of the expected value where the weights associated with each value are all equal. 
+This can be thought of as weighting the random variable by its corresponding mass (or frequency of occurance). The sample mean is a special case of the expected value where the weights associated with each value are all equal. 
 
 The **law of the unconscious statistician** states that if we have a function $g(x)$ of our random variable $x$ then we can just replace $x$ with $g(x)$ in the defnition of the expectation. This result is useful since it saves us from having to compute the PMF/PDF of $g(x)$.
 $$
-\mbox{continuous random variable}\ \implies E[x] = \int_{x\in X} g(x) \cdot f(x)\ dx \\
-\mbox{discrete random variable}\ \implies E[x] = \sum_x g(x) \cdot f(x)
+\mbox{continuous random variable}\ \implies E[g(x)] = \int_{x\in X} g(x) \cdot f(x)\ dx \\
+\mbox{discrete random variable}\ \implies E[g(x)] = \sum_x g(x) \cdot f(x)
 $$
+Other important discriptors include the median and the mode of the distribution. If we arrange a set of observations in a sequence then the **median** is the value at which half of the observations are below and half of the observations are above. In terms of the PMF/PDF we can find this value by computing $x=F^{-1}(0.5)$ where $F^{-1}$ is the inverse CMF/CDF (also known as the **quantile function**). The **mode** is the observation that occurs most frequently. This value of the random variable that achieves the maximum of the graph of the PMF/PDF.
 
 The expected value of a random variable will define the center of mass of a distribution. We are also interested in the spread of a distribution, which is encapsulated in its variance. The **variance** of the random variable $x$ is defined as the expectation of the squared difference between the random variable and its expected value,
 $$
@@ -65,9 +68,16 @@ $$
 
 Typically, distributions that have a large variance have a wider center of mass. We also have other interesting properties that govern the shape of a distribution such as **skewness** (lack of symmetry) and **kurtosis** (heavy tails). 
 
+In R we can access the random number generator, PMF/PDF, CMF/CDF, and quantile function of various distributions using prefixes `r`, `d`, `p`, and `q`, respectively, on the abbreviated name of the distribution. For example R has the functions listed below to work with the exponential distribution,
+
+ * `rexp()` : generate random values according to the exponential distribution.
+ * `dexp()` : evaluate the PDF at some value according to a prespecified rate parameter. (PMF for discrete random variables.)
+ * `qexp()` : evaluate the quantile function at some value.
+ * `pexp()` : evaluate the CDF at some value according to a prespecified rate parameter. (CMF for discrete random variables.)
+ 
 ## Bayes' Theorem
 
- We can formulate Bayes' theorem by using the definition of independence of events from probability theory. Recall, if event $A$ and event $B$ are **independent events** then the joint probability of both $A$ and $B$ occurring is defined using the product rule. Specifically,
+We can formulate Bayes' theorem by using the definition of independence of events from probability theory. Recall, if event $A$ and event $B$ are **independent events** then the joint probability of both $A$ and $B$ occurring is defined using the product rule. Specifically,
 $$
 P(A,B) = P(A)\cdot P(B)
 $$
@@ -91,45 +101,45 @@ P(B|A) &= \frac{P(A|B)\cdot P(B)}{P(A)} \\
 \end{aligned}
 $$
 
- Often we are interested in discovering the parameter that controls the data generating process. For example, say we have some data $y$ that was generated by some unknown parameter $\theta$, which also comes from some distribution. In other words, $y$ is distributed according to the distribution $p(\theta)$. Using the definition of independence we can write down a function for the unknown parameter conditional on the data using Bayes' theorem,
+ Often we are interested in discovering the parameter that controls the data generating process. For example, say we have some data $y$ that was generated by some unknown parameter $\theta$, which also comes from some distribution. In other words, $y$ is distributed according to the distribution $p(y | \theta)$. Using the definition of independence we can write down a function for the unknown parameter conditional on the data using Bayes' theorem,
 $$
 \begin{aligned}
-p(\theta|y)p(y) &= p(y|\theta)p(\theta) \\
-p(\theta|y) &= \frac{p(y|\theta)p(\theta)}{p(y)}
+p(\theta|y)p(y) &= f(y|\theta)g(\theta) \\
+p(\theta|y) &= \frac{f(y|\theta)g(\theta)}{f_y(y)}
 \end{aligned}
 $$
 
- What this is saying is that the distribution of the unknown parameter of interest $\theta$ given the data $y$ is equal to the product of the likelihood of the data $p(y|\theta)$ and the prior distribution of the parameter $p(\theta)$ divided by the marginal distribution of the data $p(y)$. \\
+ What this is saying is that the distribution of the unknown parameter of interest $\theta$ given the data $y$ is equal to the product of the likelihood of the data $f(y|\theta)$ and the prior distribution of the parameter $g(\theta)$ divided by the marginal distribution of the data $f_y(y)$. \\
 
  The **likelihood function** describes the probability density or probability mass of obtaining the data given the parameter value. It is a function of the unknown parameter $\theta$. The maximum of this function corresponds to the value of the parameter such that the most likely data to observe is $y$. Formally, the likelihood $\mathcal{L}(\theta|y)$ is the product of individual densities of $y$ given $\theta$,
 $$
-\mathcal{L}(\theta|y) = p(y|\theta) = \prod_{i=1}^n p(y_i|\theta)
+\mathcal{L}(\theta|y) = f(y|\theta) = \prod_{i=1}^n f(y_i|\theta)
 $$ 
 since this gives us the joint probability of obtaining the $n$ observations given the parameter $\theta$.\\
 
  Because of computational underflow issues (i.e. rounding numbers close to zero down to zero) we often work with the log of the likelihood function,
 $$
-\log(\mathcal{L}(\theta|y)) = \log(p(y|\theta)) = \sum_{i=1}^n \log(p(y_i|\theta))
+\log(\mathcal{L}(\theta|y)) = \log(f(y|\theta)) = \sum_{i=1}^n \log(f(y_i|\theta))
 $$
 
 Because the natural logarithm monotonically increasing, the parameter value that maximizes the log-likelihood will be the same as the parameter value that maximizes the likelihood.
 
-The **prior distribution** refers to the distribution that you have assigned to the parameter $\theta$ itself. It reflects the prior beliefs you have about the parameter. An **informative prior** provides specific information about the parameter, whereas a weakly informative or uninformative prior will provide more generic information. For example, if our parameter is a probability, then a **weakly informative** or **uninformative prior** would define the parameter as coming from the a distribution bound between 0 and 1. On the other hand, an informative prior might place high probability on the parameter being closer to 1, if you believe the true parameter is close to this value. If the prior is unbounded on one of both sides then the prior is considered an **improper prior**.
+The **prior distribution** refers to the distribution that you have assigned to the parameter $\theta$ itself. It reflects the prior beliefs you have about the parameter. An **informative prior** provides specific information about the parameter, whereas a weakly informative or uninformative prior will provide more generic information. For example, if our parameter is a probability, then a **weakly informative** or **uninformative prior** would define the parameter as coming from the a distribution bound between 0 and 1. On the other hand, an informative prior might place high probability on the parameter being closer to 1, if you believe the true parameter is close to this value. If the PMF/PDF of the prior does not integrate to one then the prior is considered an **improper prior**.
 
 The **marginal distribution of the data** can be interpreted as the expected value of the data over the parameter, $E_\theta(y)$. Since $y$ depends on $\theta$, the expected value for discrete distributions is,
 $$
-\sum_{\theta}p(y|\theta)p(\theta)
+f_y(y) = \sum_{\theta}f(y|\theta)g(\theta)
 $$
 and the expected value for continuous distributions is,
 $$
-\int_{\Omega}p(y|\theta)p(\theta)d\theta
+f_y(y) = \int_{\Omega}f(y|\theta)g(\theta)d\theta
 $$
 
 This is why $p(y)$ is sometimes referred to as being obtained by integrating the parameter out of the distribution. We are essentially looking for the expected value of $y$ by considering all possible parameter values. What this means is that, for all candidate parameter values, we are finding the product of the density of the likelihood at each parameter value and the density of the prior at that same parameter value and summing (or integrating) the result of all these products.
 
 Note that Bayes' theorem can be written as a proportion,
 $$
-p(\theta|y) \propto p(y|\theta)p(\theta)
+p(\theta|y) \propto f(y|\theta)g(\theta)
 $$
 This term is also known as the *kernel* of the distribution if the components of the distribution depend *only* on the domain (in this case $\theta$). We can write this as a proportion since the marginal distribution $p(y)$ does not depend on $\theta$. It is a constant, since we summed (or integrated) $\theta$ out in order to evaluate it. The use of dividing by $p(y)$ is to ensure that the area under the posterior density $p(\theta|y)$ sums/integrates to one. Notice that since $p(y)$ is a constant, it identically scales the kernel for each candidate value of the parameter. So, the relative difference of $p(\theta|y)$ for the different values of $\theta$ remains unchanged if it is omitted.
 
@@ -164,7 +174,7 @@ Similarly, we can show that the probability that an individual is healthy given 
 
 So even though $P(\mbox{Symptoms} | \mbox{Swine Flu})>P(\mbox{Symptoms} | \mbox{Flu})$, incorporating our prior beliefs suggests that an individual is more likely to have the conventional flu rather than swine flu if they exhibit the symptoms.
 
-If our prior beliefs change (e.g. due to an outbreak of swine flu) so that we now believe that the probability of swine flu in the population is 0.6 then our conditional probabilities adjust accordingly (see below).
+If our prior beliefs change (e.g. due to an outbreak of swine flu) so that we now believe that the probability of swine flu in the population is 0.06 then our conditional probabilities adjust accordingly (see below).
 
 <br>
 <center>
@@ -177,6 +187,34 @@ If our prior beliefs change (e.g. due to an outbreak of swine flu) so that we no
 So given that our adjusted prior beliefs reflect a higher prevalence of swine flu in the population (compared to the conventional flu) our conditional probability reflects that the symptoms are most likely a result of being infected with swine flu. You can see how this is useful if, for instance, we want to associate distinct priors for specific regions. Higher prior probabilities can be applied to regions that are currently experiencing an outbreak.
 
 The R code below evaluates these probabilities.
+
+```{r eval=FALSE}
+# We are interested in finding P ( swineflu | symptoms ) = P ( symptoms | swineflu ) P ( swineflu )/P ( symptoms )
+# Likelihoods
+symptoms_swineflu <- 0.95
+symptoms_flu <- 0.90
+symptoms_healthy <- 0.001
+# Priors
+swineflu <- 0.01
+flu <- 0.04
+healthy <- 0.90
+# Marginal distribution of the data
+denominator <- symptoms_swineflu * swineflu + symptoms_flu * flu + symptoms_healthy * healthy
+# Conditional probabilities
+symptoms_swineflu * swineflu / denominator    # P ( swineflu | symptoms )
+symptoms_flu * flu / denominator              # P ( flu | symptoms )
+symptoms_healthy * healthy / denominator      # P ( healthy | symptoms )
+# Check probabilities sum to one
+sum ( symptoms_swineflu * swineflu / denominator
++ symptoms_flu * flu / denominator
++ symptoms_healthy * healthy / denominator )
+# Raising the prior belief about swine flu in the population
+swineflu <- 0.06
+denominator <- symptoms_swineflu * swineflu + symptoms_flu * flu + symptoms_healthy * healthy
+symptoms_swineflu * swineflu / denominator   # P ( swineflu | symptoms )
+symptoms_flu * flu / denominator             # P ( flu | symptoms )
+symptoms_healthy * healthy / denominator     # P ( healthy | symptoms )
+```
 
 ### Functional Form of the Posterior
 
@@ -221,20 +259,20 @@ Maximum likelihood is a method to find parameter values for a model given some d
 
 As mentioned above, the likelihood function of some vector of data $y_i$ is the probability of obtaining $y_i$ given some parameter value $\theta$. We can find this by taking the product of each of the individual densities $y_i$ given $\theta$. 
 $$
-p(y|\theta) = \prod_{i=1}^np(y_i|\theta)
+p(y|\theta) = \prod_{i=1}^nf(y_i|\theta)
 $$
 
-Note that $p(y|\theta)$ is a function of $\theta$. By solving for $\theta$ we can find the parameter value that maximizes the likelihood of obtaining the data (i.e. the maximum likelihood estimate of $\theta$). As mentioned before we often work with the log of the likelihood function since it is more tractable. 
+Note that $f(y|\theta)$ is a function of $\mathcal{L}(\theta;y)$. By solving for $\theta$ we can find the parameter value that maximizes the likelihood of obtaining the data (i.e. the maximum likelihood estimate of $\theta$). As mentioned before we often work with the log of the likelihood function since it is more tractable. 
 
 ### Maximum Likelihood from Bayes' Theorem
 
 Maximum likelihood estimation can be thought of as a special case of the Bayesian posterior distribution where the prior distribution is constant for all candidate parameter values. So the mode of following posterior distribution,
 $$
-p(\theta|y) \propto p(y|\theta)p(\theta)
+p(\theta|y) \propto f(y|\theta)g(\theta)
 $$
 is identical to the maximum likelihood estimate of $\theta$ when $p(\theta)$ follows the uniform distribution. In which case we would have,
 $$
-p(\theta|y) \propto p(y|\theta)
+p(\theta|y) \propto f(y|\theta)
 $$
 
 Consider a vector of n observations $y\sim\mathcal{N}(\mu,\sigma)$. If we did not know the mean and standard deviation parameters responsible for generating the data, we can find them by finding the maximum of the likelihood function with respect to each of the parameters. We start by forming the likelihood function, 
