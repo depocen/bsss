@@ -6,7 +6,7 @@ output:
   html_document:
     highlight: pygments
     theme: spacelab
-    toc: true
+    toc: yes
   pdf_document:
     highlight: pygments
     toc: yes
@@ -35,7 +35,7 @@ Below is a list of the main components of a PMF/PDF:
 
 For example let $x \sim Beta(\alpha,\beta)$. The functional form is as follows,
 $$
-\big[B(\alpha,\beta)\big]^{-1}x^{\alpha-1}(1-x)^{\beta-1}
+\underbrace{\big[B(\alpha,\beta)\big]^{-1}}_{\substack {\text{normalizing} \\ \text{constant}}}\underbrace{x^{\alpha-1}(1-x)^{\beta-1}}_\text{kernel}
 $$
 The kernel of this function is $x^{\alpha-1}(1-x)^{\beta-1}$ and the normalizing constant is $\big[B(\alpha,\beta)\big]^{-1}$ where $B(\cdot)$ is the beta function. The support of the function is x being continuous on the closed unit interval, $x\in[0,1]$. The parameters $\alpha$ and $\beta$ are positive real numbers. 
 
@@ -189,7 +189,7 @@ So given that our adjusted prior beliefs reflect a higher prevalence of swine fl
 The R code below evaluates these probabilities.
 
 ```{r eval=FALSE}
-# We are interested in finding P ( swineflu | symptoms ) = P ( symptoms | swineflu ) P ( swineflu )/P ( symptoms )
+# We are interested in finding P(swineflu|symptoms) = (P(symptoms|swineflu)*P(swineflu)) / P(symptoms)
 # Likelihoods
 symptoms_swineflu <- 0.95
 symptoms_flu <- 0.90
@@ -201,9 +201,9 @@ healthy <- 0.90
 # Marginal distribution of the data
 denominator <- symptoms_swineflu * swineflu + symptoms_flu * flu + symptoms_healthy * healthy
 # Conditional probabilities
-symptoms_swineflu * swineflu / denominator    # P ( swineflu | symptoms )
-symptoms_flu * flu / denominator              # P ( flu | symptoms )
-symptoms_healthy * healthy / denominator      # P ( healthy | symptoms )
+symptoms_swineflu * swineflu / denominator    # P(swineflu|symptoms)
+symptoms_flu * flu / denominator              # P(flu|symptoms)
+symptoms_healthy * healthy / denominator      # P(healthy|symptoms)
 # Check probabilities sum to one
 sum ( symptoms_swineflu * swineflu / denominator
 + symptoms_flu * flu / denominator
@@ -211,9 +211,9 @@ sum ( symptoms_swineflu * swineflu / denominator
 # Raising the prior belief about swine flu in the population
 swineflu <- 0.06
 denominator <- symptoms_swineflu * swineflu + symptoms_flu * flu + symptoms_healthy * healthy
-symptoms_swineflu * swineflu / denominator   # P ( swineflu | symptoms )
-symptoms_flu * flu / denominator             # P ( flu | symptoms )
-symptoms_healthy * healthy / denominator     # P ( healthy | symptoms )
+symptoms_swineflu * swineflu / denominator   # P(swineflu|symptoms)
+symptoms_flu * flu / denominator             # P(flu|symptoms)
+symptoms_healthy * healthy / denominator     # P(healthy|symptoms)
 ```
 
 ### Functional Form of the Posterior
@@ -262,7 +262,7 @@ $$
 p(y|\theta) = \prod_{i=1}^nf(y_i|\theta)
 $$
 
-Note that $f(y|\theta)$ is a function of $\mathcal{L}(\theta;y)$. By solving for $\theta$ we can find the parameter value that maximizes the likelihood of obtaining the data (i.e. the maximum likelihood estimate of $\theta$). As mentioned before we often work with the log of the likelihood function since it is more tractable. 
+Note that $f(y|\theta)$ is a function of $\mathcal{L}(\theta;y)$. By solving for $\theta$ we can find the parameter value that maximizes the likelihood of obtaining the data (i.e. the maximum likelihood estimate of $\theta$). As mentioned before we often work with the log of the likelihood function since it is more tractable (both numerically and analytically). 
 
 ### Maximum Likelihood from Bayes' Theorem
 
@@ -270,7 +270,7 @@ Maximum likelihood estimation can be thought of as a special case of the Bayesia
 $$
 p(\theta|y) \propto f(y|\theta)g(\theta)
 $$
-is identical to the maximum likelihood estimate of $\theta$ when $p(\theta)$ follows the uniform distribution. In which case we would have,
+is identical to the maximum likelihood estimate of $\theta$ when $g(\theta)$ follows the uniform distribution. In which case we would have,
 $$
 p(\theta|y) \propto f(y|\theta)
 $$
