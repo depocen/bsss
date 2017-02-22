@@ -1,0 +1,64 @@
+---
+title: "MCMC and Algorithms"
+author: "Imad Ali"
+date: "2/14/2017"
+output:
+  html_document:
+    highlight: pygments
+    theme: spacelab
+    toc: true
+  pdf_document:
+    highlight: pygments
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This note serves as an overview of some of the algorithms used in Bayesian statistics.
+
+## Introduction
+
+## Gibbs
+
+**Gibbs sampling** requires that your priors are **conjugate priors**. This means that your prior distribution and posterior distribution belong to the same family of distributions. This involves specifying the kernel of $p(\theta|y)$, recognizing what distribution this kernel represents, and then drawing from this distribution. This method of sampling is not used so much given the restriction of using conjugate priors and that the transition of the sampler moves at right angles across the distribution.
+
+```{r include=TRUE}
+library(mvtnorm)
+y <- rmvnorm(100, c(0, 3))
+gibbs <- function(y, y_0, iter, rho = 0.5) {
+  out <- array(iter, ncol(y))
+  out <- unif()
+  for(i in 1:iter) {
+    mu1 <- rnorm(1, mu2)
+    mu2 <- rnorm(1, mu1)
+    out(i,) <- cbind(mu1,mu2)
+  }
+}
+```
+
+## Markov Chains
+
+A Markov chain specifies that the state you move to only depends on the state you are currently at (and not past states). Using a Markov chain to sample is called **Markov chain Monte Carlo** (MCMC).
+
+## Metropolis-Hastings
+
+The Gibbs sampler is a special case of the Metropolis-Hastings algorithm.
+
+ALGORITHM
+
+* Step 1: draw candidate from candidate distribution (e.g. standard uniform distribution).
+* Step 2: evaluate the posterior PDF at the candidate data point divided by the posterior PDF at the previous candidate data point.
+* Step 3: accept $\theta$ with probabililty $min{1, ...}$
+
+### Tuning
+
+## Hamiltonian Monte Carlo
+
+ALGORITHM
+
+* Step 1
+* Step 2
+
+## Metropolis-Hastings
