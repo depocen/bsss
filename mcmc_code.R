@@ -205,7 +205,7 @@ table(is.na(beta_sample2$accept))
 # 4. if x* is accepted then collect x_{n+1} = x* else collect x_{n+1} = x_{n}
 # 5. repeat
 
-metropolis <- function(f, iter = 1e3, chains = 4) {
+metropolis <- function(f, iter = 1e3, chains = 4, prop_scale = 1) {
   init <- rnorm(chains, 0, 20)
   out <- array(NA, c(iter, chains))
   out[1,] <- init
@@ -215,7 +215,7 @@ metropolis <- function(f, iter = 1e3, chains = 4) {
     u <- 1
     while(alpha < u) {
       u <- runif(1, 0, 1)
-      x_star <- rnorm(1, 0, 20)
+      x_star <- rnorm(1, x, 1 * prop_scale)
       alpha <- exp(f(x_star)-f(x))
     }
     return(x_star)
@@ -232,7 +232,16 @@ metropolis <- function(f, iter = 1e3, chains = 4) {
 
 cols <- colorRampPalette(c("#ff6688","#336688"))(4)
 
-metro <- metropolis(f = function(x){sum(dnorm(rnorm(15,10,5), x, 1, log = T))}, chains = 4, iter = 2e3)
+dat <- rnorm(1, rnorm(10, 5, 5), 1)
+post_func <- function(x) {
+  lik <- sum(dnorm(dat, x, 1, log = T))
+  prior <- dnorm(x, 0, 1, log = T)
+  lik + prior
+}
+metro <- metropolis(f = post_func, chains = 4, iter = 2e3)
+
+mean(dat)
+mean(metro)
 
 warmup <- (dim(metro)[1])/2
 plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,warmup), ylim = range(metro[-seq(1,warmup),dim(metro)[2]]),
@@ -378,5 +387,121 @@ hist(metro_hasti[-warmup,2,], breaks = 30, col = "darkgrey", border = FALSE, fre
 optim(c(-4,4), f <- function(pars){sum(dmvnorm(dat, pars, covmat, log = TRUE))}, control = list(fnscale = -1))
 
 # HAMILTONIAN MONTE CARLO ALGORITHM
+
+library(mvtnorm)
+
+covmat <- diag(1,2)
+N <- 20
+priors <- cbind(rnorm(N, 0, 3), rnorm(N, 0, 3))
+# priors <- cbind(rep(0,N), rep(0,N))  # fixed
+dat <- array(NA, c(N, 2))
+for(i in 1:N) {
+  dat[i,] <- rmvnorm(1, mean = priors[i,], sigma = covmat) 
+}
+colMeans(dat)
+
+post_func <- function(theta) {
+  lik <- sum(dmvnorm(dat, theta, covmat, log = TRUE))
+  prior <- dnorm(theta, 0, 0.1, log = TRUE)
+  return(lik + sum(prior))
+}
+
+init_val <- cbind(c(1,1),
+                  c(-1,-1),
+                  c(1,-1),
+                  c(-1,1))
+init_val <- init_val * 4
+
+hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, M = diag(1,2), L_0 = 10) {
+  out <- array(NA, c(iter, 2, chains))
+  phi <- array(NA, c(iter, 2, chains))
+  if(is.null(init_val))
+    out[1,,] <- t(rmvnorm(chains, c(0,0), diag(1,2)))
+  else
+    out[1,,] <- init_val
+  phi[1,,] <- rmvnorm(chains, c(0,0), M)
+  
+  gradient <- function(theta) {
+    e <- 1e-4
+    out <- array(NA, length(theta))
+    for(t in 1:length(theta)) {
+      # browser()
+      theta_hi <- theta_lo <- theta
+      theta_hi[t] <- theta[t] + e
+      theta_lo[t] <- theta[t] - e
+      out[t] <- (f(theta_hi) - f(theta_lo)) / (2 * e)
+      # browser()
+    }
+    out
+  }
+  
+  sampler <- function(theta) {
+    phi <- c(rmvnorm(1, mean = c(0,0), sigma = M))
+    grad <- gradient(theta)
+    epsilon <- runif(1, 0, 2 * epsilon_init)
+    L <- ceiling(2 * L_0 * runif(1,0,1))
+    for (l in 1:L) {
+      phi <- phi + 0.5 * epsilon * grad
+      theta <- theta + epsilon * solve(M) %*% phi
+      phi <- phi + 0.5 * epsilon * grad 
+    }
+    return(list("theta" = c(theta), "phi" = c(phi)))
+  }
+  
+  accept_reject <- function(theta_star, theta, phi_star, phi) {
+    dens_theta_star <- f(theta_star)
+    dens_theta <- f(theta)
+    dens_phi_star <- dmvnorm(phi_star, c(0,0), M, log = TRUE)
+    dens_phi <- dmvnorm(phi, c(0,0), M, log = TRUE)
+    alpha <- exp((dens_theta_star + dens_phi_star) - (dens_theta + dens_phi))
+    alpha
+  }
+  
+  for(j in 1:chains) {
+    cat(paste0("[ chain ", j, " ]"))
+    for(i in 2:iter) {
+      alpha <- 0
+      u <- 1
+      while(alpha < u) {
+        u <- runif(1, 0, 1)
+        sample <- sampler(out[i-1,,j])
+        alpha <- accept_reject(sample$theta, out[i-1,,j], sample$phi, phi[i-1,,j])
+      }
+      phi[i,,j] <- sample$phi
+      out[i,,j] <- sample$theta
+      if(i%%(iter/10) == 0)
+        cat(".")
+      if(i == iter)
+        cat("[ complete ]\n")
+    } 
+  }
+  out
+}
+
+hmc_sim <- hmc(f = post_func, iter = 1e3, init_val = init_val, epsilon_init = ((1/15)^2), M = diag(1,2), L_0 = 10)
+colMeans(hmc_sim)
+
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+     ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[1]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], col = cols[i], lwd = 2)
+}
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+     ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[2]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+
+plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
+     ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+
+plot(0, type = "n", xlim = range(hmc_sim[,1,])/8, ylim = range(hmc_sim[,2,])/8, 
+     ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
 
 # NUTS
