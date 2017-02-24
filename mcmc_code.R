@@ -390,15 +390,17 @@ optim(c(-4,4), f <- function(pars){sum(dmvnorm(dat, pars, covmat, log = TRUE))},
 
 library(mvtnorm)
 
-covmat <- diag(1,2)
-N <- 20
-priors <- cbind(rnorm(N, 0, 3), rnorm(N, 0, 3))
+# covmat <- diag(1,2)
+covmat <- rbind(c(1,0.9),c(0.9,1))
+N <- 1e3
+priors <- cbind(rnorm(N, 0, 1), rnorm(N, 0, 1))
 # priors <- cbind(rep(0,N), rep(0,N))  # fixed
 dat <- array(NA, c(N, 2))
 for(i in 1:N) {
   dat[i,] <- rmvnorm(1, mean = priors[i,], sigma = covmat) 
 }
 colMeans(dat)
+plot(dat, col = "#808080")
 
 post_func <- function(theta) {
   lik <- sum(dmvnorm(dat, theta, covmat, log = TRUE))
@@ -457,6 +459,8 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
     alpha
   }
   
+  cat(paste0("['.' = ", iter/10, " iterations]\n"))
+  
   for(j in 1:chains) {
     cat(paste0("[ chain ", j, " ]"))
     for(i in 2:iter) {
@@ -479,7 +483,8 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
 }
 
 hmc_sim <- hmc(f = post_func, iter = 1e3, init_val = init_val, epsilon_init = ((1/15)^2), M = diag(1,2), L_0 = 10)
-colMeans(hmc_sim)
+colMeans(dat)
+rowMeans(colMeans(hmc_sim))
 
 plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
      ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[1]))
@@ -492,16 +497,35 @@ for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
 
+x <- y <- seq(-4,4,0.01)
+z <- outer(x, y, FUN = function(x, y){dmvnorm(cbind(x,y), colMeans(dat), covmat)})
 plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+contour(x, y, z, add = TRUE, col = "#808080")
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
 
-plot(0, type = "n", xlim = range(hmc_sim[,1,])/8, ylim = range(hmc_sim[,2,])/8, 
+plot(0, type = "n", xlim = range(hmc_sim[,1,])/30, ylim = range(hmc_sim[,2,])/30, 
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+x <- y <- seq(-0.2,0.2,0.01)
+z <- outer(x, y, FUN = function(x, y){dmvnorm(cbind(x,y), colMeans(dat), covmat)})
+contour(x, y, z, add = TRUE, col = "#808080")
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
+
+params <- rbind(hmc_sim[,,1],
+                hmc_sim[,,2],
+                hmc_sim[,,3],
+                hmc_sim[,,4])
+
+
+hmc_draws <- t(apply(params, 1, function(x){rmvnorm(1, x, covmat)}))
+binorm_draws <- rmvnorm(4e3, colMeans(dat), covmat)
+plot(binorm_draws, cex = 0.5, col = "#80808096", xlim = c(-6, 6), ylim = c(-6, 6),
+     main = "Comparing Random Samples", xlab = expression(x[1]), ylab = expression(x[2]))
+points(hmc_draws, col = "#cc000096", cex = 0.5)
+legend("bottomright", c("HMC","Draws"), col = c("#cc000096","#80808096"), pch = rep(21,2), pt.lwd = rep(2,2), cex = 0.6)
 
 # NUTS
