@@ -7,7 +7,7 @@ remove(list = ls())
 # RANDOM WALK
 
 loc <- c("up", "down", "left", "right")
-dat <- matrix(NA, ncol = 2, nrow = 1e5)
+dat <- matrix(NA, ncol = 2, nrow = 1e5/2)
 dat[1,] <- c(0,0)
 
 for(i in 2:nrow(dat)) {
@@ -29,8 +29,10 @@ for(i in 2:nrow(dat)) {
   }
 }
 
-plot(dat[1:5e3,1], dat[1:5e3,2], col = "#808080", type = "l", bty = "n", yaxt = "n", xaxt = "n", xlab = "", ylab = "")
-plot(dat[,1], dat[,2], type = "l", bty = "n", yaxt = "n", xaxt = "n", xlab = "", ylab = "", col = "#808080")
+plot(dat[1:5e3,1], dat[1:5e3,2], col = rgb(125, 125, 125, alpha = 100, max = 255),
+     type = "l", bty = "n", yaxt = "n", xaxt = "n", xlab = "", ylab = "")
+plot(dat[,1], dat[,2], type = "l", bty = "n", yaxt = "n", xaxt = "n", xlab = "", ylab = "",
+     col = rgb(125, 125, 125, alpha = 100, max = 255))
 lines(dat[1:5e3,1], dat[1:5e3,2], col = "#ff6688")
 
 # MARKOV CHAIN FUNCTION
@@ -65,10 +67,10 @@ markov_chain <- function(transition_matrix, iter = 1e3, init = c(0,0), state = c
       dat[i,] <- c(0,-1) + dat[i-1,]
     }
     else if(rand == "left") {
-      dat[i,] <- c(1,0) + dat[i-1,]
+      dat[i,] <- c(-1,0) + dat[i-1,]
     }
     else if(rand == "right") {
-      dat[i,] <- c(-1,0) + dat[i-1,]
+      dat[i,] <- c(1,0) + dat[i-1,]
     }
     else {
       dat[i,] <- c(NA,NA)
@@ -78,36 +80,52 @@ markov_chain <- function(transition_matrix, iter = 1e3, init = c(0,0), state = c
   return(list("dat" = dat, "prob" = prob, "move" = move))
 }
 
-# MARKOV CHAIN
-
-trans_prob <- rbind(c(0, 0.9, 0, 0.1),
-                    c(0.9, 0, 0.1, 0),
-                    c(0.1, 0, 0, 0.9),
-                    c(0, 0.1, 0.9, 0))
-colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
-iter <- 1e4
-
-mc <- markov_chain(trans_prob, iter = 1e4)
-
-plot(mc$dat[,1], mc$dat[,2], col = rgb(125, 125, 125, alpha = 100, max = 255), type = "l",
-     main = "Markov Chain as a Random Walk", xlab = "x position", ylab = "y position",
-     bty = "n")
-points(0,0, col = "#ff6688", cex = 1, pch = 20)
-points(mc$dat[iter,1], mc$dat[iter,2], col = "#40d2fe", cex = 1, pch = 20)
-
-# MARKOV CHAIN AS A RANDOM WALK
+# MARKOV CHAIN (as a random walk)
 
 trans_prob <- matrix(0.25, ncol = 4, nrow = 4)
 colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
 iter <- 1e4
 
-mc_rw <- markov_chain(trans_prob, iter = 1e4)
+mc_rw <- markov_chain(trans_prob, iter = iter)
 
 plot(mc_rw$dat[,1], mc_rw$dat[,2], col = rgb(125, 125, 125, alpha = 100, max = 255), type = "l",
      main = "Markov Chain as a Random Walk", xlab = "x position", ylab = "y position",
      bty = "n")
 points(0,0, col = "#ff6688", cex = 1, pch = 20)
 points(mc_rw$dat[iter,1], mc_rw$dat[iter,2], col = "#40d2fe", cex = 1, pch = 20)
+
+# MARKOV CHAIN (with center biased transition matrix)
+
+trans_prob <- rbind(c(0, 0.9, 0, 0.1),
+                    c(0.9, 0, 0.1, 0),
+                    c(0.9, 0, 0, 0.1),
+                    c(0, 0.9, 0.1, 0))
+colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
+
+mc <- markov_chain(trans_prob, iter = iter)
+
+y_range <- range(range(mc$dat[,2]), range(mc_rw$dat[,2]))
+x_range <- range(range(mc$dat[,1]), range(mc_rw$dat[,1]))
+
+plot(mc$dat[,1], mc$dat[,2], col = rgb(125, 125, 125, alpha = 100, max = 255), type = "l",
+     main = "Markov Chain", xlab = "x position", ylab = "y position",
+     xlim = x_range, ylim = y_range,
+     bty = "n")
+points(0,0, col = "#ff6688", cex = 1, pch = 20)
+points(mc$dat[iter,1], mc$dat[iter,2], col = "#40d2fe", cex = 1, pch = 20)
+
+# compare markov chains on same plot
+plot(mc_rw$dat[,1], mc_rw$dat[,2], col = rgb(125, 125, 125, alpha = 100, max = 255), type = "l",
+     xaxt = "n", yaxt = "n",
+     main = "Markov Chain", xlab = "x position", ylab = "y position",
+     xlim = x_range, ylim = y_range,
+     bty = "n")
+lines(mc$dat[,1], mc$dat[,2], col = rgb(255, 102, 136, alpha = 150, max = 255))
+points(mc$dat[1,1], mc$dat[1,2], cex = 1, col = "black", pch = 20)
+points(mc_rw$dat[1,1], mc_rw$dat[1,2], cex = 1, col = "black", pch = 20)
+legend("topright", c("Center Biased", "Random Walk", "Initial Value"),
+       col = c(rgb(255, 102, 136, alpha = 150, max = 255), rgb(125, 125, 125, alpha = 100, max = 255), "black"),
+       lwd = c(1,1,NA), pch = c(NA,NA,20), cex = 0.5)
 
 # MONTE CARLO - APPROXIMATE PI
 
