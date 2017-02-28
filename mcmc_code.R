@@ -84,7 +84,7 @@ markov_chain <- function(transition_matrix, iter = 1e3, init = c(0,0), state = c
 
 trans_prob <- matrix(0.25, ncol = 4, nrow = 4)
 colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
-iter <- 1e4
+iter <- 1e5
 
 mc_rw <- markov_chain(trans_prob, iter = iter)
 
@@ -96,10 +96,21 @@ points(mc_rw$dat[iter,1], mc_rw$dat[iter,2], col = "#40d2fe", cex = 1, pch = 20)
 
 # MARKOV CHAIN (with center biased transition matrix)
 
+# trans_prob <- rbind(c(0, 0.9, 0, 0.1),
+#                     c(0.9, 0, 0.1, 0),
+#                     c(0.9, 0, 0, 0.1),
+#                     c(0, 0.9, 0.1, 0))
+
 trans_prob <- rbind(c(0, 0.9, 0, 0.1),
                     c(0.9, 0, 0.1, 0),
-                    c(0.9, 0, 0, 0.1),
-                    c(0, 0.9, 0.1, 0))
+                    c(0.1, 0, 0, 0.9),
+                    c(0, 0.1, 0.9, 0))
+
+# trans_prob <- rbind(c(0, 0.1, 0, 0.9),
+#                     c(0.1, 0, 0.9, 0),
+#                     c(0.9, 0, 0, 0.1),
+#                     c(0, 0.9, 0.1, 0))
+
 colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
 
 mc <- markov_chain(trans_prob, iter = iter)
@@ -253,7 +264,7 @@ cols <- colorRampPalette(c("#ff6688","#336688"))(4)
 dat <- rnorm(1, rnorm(10, 5, 5), 1)
 post_func <- function(x) {
   lik <- sum(dnorm(dat, x, 1, log = T))
-  prior <- dnorm(x, 0, 1, log = T)
+  prior <- dnorm(x, 5, 1, log = T)
   lik + prior
 }
 metro <- metropolis(f = post_func, chains = 4, iter = 2e3)
@@ -274,8 +285,9 @@ for(i in 1:4){
   lines(metro[1:100,i], col = cols[i], lwd = 2) 
 }
 
-hist(metro[-(1:(dim(metro)[1]/2)),], col = "darkgrey", border = FALSE, breaks = 50, freq = FALSE,
+hist(metro[-(1:(dim(metro)[1]/2)),], col = "#808080", border = FALSE, breaks = 50, freq = FALSE,
      main = expression("Distribution of " ~ mu), xlab = expression(mu))
+abline(v = mean(metro), col = "red")
 
 # METROPOLIS-HASTINGS ALGORITHM
 
@@ -318,7 +330,7 @@ metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_sca
   }
   
   for(j in 1:chains) {
-    cat("::chain::", j, "")
+    cat(":: chain", j, "::", "")
     reject <- 0
     for(i in 2:iter) {
       sampler_stuff <- sampler(out[i-1,,j])
@@ -363,7 +375,7 @@ metro_hasti <- metropolis_hastings(f = posterior_func,
 
 # metro_hasti
 colMeans(dat)
-colMeans(metro_hasti)
+rowMeans(colMeans(metro_hasti))
 range(metro_hasti)
 
 cols <- colorRampPalette(c("#ff6688","#336688"))(4)
@@ -398,8 +410,10 @@ rect(-50, range(metro_hasti[,1,])[1]-4, dim(metro_hasti)[1]/2, range(metro_hasti
      col = rgb(128,128,128, alpha = 50, max = 255), border = NA)
 
 warmup <- seq(1,(dim(metro_hasti)[1]/2))
-hist(metro_hasti[-warmup,1,], breaks = 30, col = "darkgrey", border = FALSE, freq = FALSE)
-hist(metro_hasti[-warmup,2,], breaks = 30, col = "darkgrey", border = FALSE, freq = FALSE)
+hist(metro_hasti[-warmup,1,], breaks = 40, col = "darkgrey", border = FALSE, freq = FALSE,
+     main = expression("Histogram for" ~ mu[1]))
+hist(metro_hasti[-warmup,2,], breaks = 40, col = "darkgrey", border = FALSE, freq = FALSE,
+     main = expression("Histogram for" ~ mu[2]))
 
 # mle approach
 optim(c(-4,4), f <- function(pars){sum(dmvnorm(dat, pars, covmat, log = TRUE))}, control = list(fnscale = -1))
