@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This note serves as an overview of some of the algorithms used in Bayesian statistics, starting with an introduction to markov chains and Monte Carlo methods; the two fundamental components that make up a **Markov Chain Monte Carlo** (MCMC) process.
 
-## Random Walk
+## Random Walks
 
 A [random walk]() pretty much does what it says on the tin. It's a collection of random steps that, when plotted, represent a random process. An often used example is a particle moving in one dimension. With equal probability the partical moves up or down at time $t$ relative to it position at time $t-1$. This can be represented with a Bernoulli probability mass function. Another example would be to let $\varepsilon ~ \mathcal{N}(0,1)$ and define,
 $$
@@ -348,7 +348,7 @@ abline(h = 2, col = "black", lty = 2)
 
 If we state our acceptance rule as $u \leq f(y)/(Mg(y)) \implies u(Mg(y)) \leq f(y)$ then why this is happening should be clear. If $M_1 < M_2$ then for any given $u$ and $y$, $u(M_1g(y)) < u(M_2g(y))$ which means that the condition $u(M_1g(y)) \leq f(y)$ will end up accepting $y$ more than $u(M_2g(y)) \leq f(y)$.
 
-## Metropolis Algorithm
+## Metropolis
 
 Now we want to combine these two aforementioned ideas of Markov chains and Monte Carlo methods. If we use a Markov chain to move through some mathematical space and sample according to some Monte Carlo method then what we have is called **Markov chain Monte Carlo** (MCMC). The [Metropolis algorithm] is a simple case of this. Again, we have a target distribution $f$ that we are interested in sampling from and a *symmetric* candidate distribution $g$ that we generate proposals from. Let the index $n$ denote the current position of the chain. The algorithm proceeds as follows,
 
@@ -364,12 +364,12 @@ The code below creates a function that runs the Metropolis algorithm. The user c
 ```{r metropolis, include=TRUE}
 # METROPOLIS ALGORITHM
 
-# 1. generate x* from g(x_{n}) (where g is a symmetric candidate distribution, e.g. normal)
-# 2. compute the acceptance ratio alpha = f(x*)/f(x_{n}) (where f is the target distribution)
-# 3. accept x* with probability min(1, alpha)
-# 4. if x* is accepted then collect x_{n+1} = x* else collect x_{n+1} = x_{n}
-# 5. repeat
-
+#' A Rejection Sampling algorithm where proposals are generated from Unif(0,1).
+#' @param f Target distribution.
+#' @param iter Number of iterations to run the algorithm through.
+#' @param chains Number of chains.
+#' @param prop_scale Value of tuning parameter.
+#' @return An array of iterations by chains.
 metropolis <- function(f, iter = 1e3, chains = 4, prop_scale = 1) {
   init <- rnorm(chains, 0, 20)
   out <- array(NA, c(iter, chains))
@@ -407,6 +407,7 @@ post_func <- function(x) {
   lik + prior
 }
 ```
+
 Mathematically we can state our model as,
 $$
 y \sim N(\mu, 1) \\
@@ -434,10 +435,10 @@ cols <- c(rgb(255, 102, 136, alpha = 150, max = 255),
 
 par(mfrow = c(2,2))
 # traceplot of full length of chains
-plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,1e3), ylim = range(metro),
+plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,length(metro)), ylim = range(metro),
      main = expression("Traceplot of " ~ mu))
 for(i in 1:4){
-  lines(metro[1:1e3,i], col = cols[i], lwd = 2)
+  lines(metro[1:dim(metro)[1],i], col = cols[i], lwd = 2)
 }
 # traceplot of first 100 iterations
 plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,100), ylim = range(metro),
@@ -454,18 +455,27 @@ for(i in 1:4){
 }
 # histogram of mu
 hist(metro[-(1:(dim(metro)[1]/2)),], col = "darkgrey", border = FALSE, breaks = 50, freq = FALSE,
-     main = expression("Distribution of " ~ mu), xlab = expression(mu))
+     main = expression("Posterior Distribution of " ~ mu), xlab = expression(mu))
 abline(v = mean(metro), col = "red", lwd =2)
 ```
 
-## Metropolis-Hastings Algorithm
+## Metropolis-Hastings
 
 The **Metropolis-Hastings algorithm** is similar to the Metropolis algorithm, however, we now relax the assumption that the proposal distribution $g$ has to be symmetric. The algorithm proceeds in the same was except that now our accept/reject condition is $u < \frac{f(x^*)}{f(x_n)}\frac{g(x_n|x^*)}{g(x^*|x_n)}$. The component $frac{g(x_n|x^*)}{g(x^*|x_n)}$ is included in the condition to correct for the asymmetry in the proposal distribution. The benefit of this is efficiency since, in some cases, using an asymmetric proposal distribution can increase the speed of the Markov chain.
 
 The code below creates a Metropolis-Hastings function that allows you to sample from a bivariate distribution, where $g$ is the bivariate normal distribution.
 
 ```{r metropolis-hastings, include=TRUE}
-metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_scale = 1, prop_loc = c(0,0)) {
+# METROPOLIS-HASTINGS ALGORITHM
+
+#' A Rejection Sampling algorithm where proposals are generated from Unif(0,1).
+#' @param f Target distribution.
+#' @param iter Number of iterations to run the algorithm through.
+#' @param chains Number of chains.
+#' @param init Initial values for each chain.
+#' @param prop_scale Value for tuning parameter.
+#' @return An array of iterations by parameters by chains.
+metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_scale = 1) {
   out <- array(NA, c(iter, 2, chains))
   # setup initial values
   for(p in 1:2) {
@@ -475,7 +485,7 @@ metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_sca
       out[1,p,] <- init[,p]
   }
 
-  prop_covmat <- diag(1,2)*prop_scale
+  prop_covmat <- diag(1,2)
 
   # create sampler
   sampler <- function(x) {
@@ -485,7 +495,7 @@ metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_sca
     while(alpha < u) {
       reject <- reject + 1
       u <- runif(1, 0, 1)
-      x_star <- rmvnorm(1, x, prop_covmat)
+      x_star <- rmvnorm(1, x, prop_covmat*prop_scale)
       alpha <- exp((f(x_star)-f(x)) +
                      (dmvnorm(x, x_star, prop_covmat, log = TRUE) - dmvnorm(x_star, x, prop_covmat, log = TRUE)))
       # cat("alpha = ", alpha, "; ", "u = ", u, "\n")
@@ -551,7 +561,7 @@ posterior_func <- function(pars) {
 # run algorithm
 metro_hasti <- metropolis_hastings(f = posterior_func,
                                    iter = 2e3, chains = 4, init = init_val,
-                                   prop_scale = 0.005, prop_loc = colMeans(dat))
+                                   prop_scale = 0.005)
 ```
 
 Below we have the means of each parameter using the data and the sampled values. Again, we get a lot closer to the true parameter values with the Bayesian approach, compared to the maximum likelihood approach.
@@ -602,24 +612,24 @@ The figure below illustrates the samples for each parameter using histograms.
 par(mfrow=c(1,2))
 warmup <- seq(1,(dim(metro_hasti)[1]/2))
 hist(metro_hasti[-warmup,1,], breaks = 40, col = "darkgrey", border = FALSE, freq = FALSE,
-     main = expression("Histogram for" ~ mu[1]), xlab = expression(mu[1]))
+     main = expression("Posterior Distribution of" ~ mu[1]), xlab = expression(mu[1]))
 abline(v = mean(metro_hasti[-warmup,1,]), col = "red", lwd = 2)
 hist(metro_hasti[-warmup,2,], breaks = 40, col = "darkgrey", border = FALSE, freq = FALSE,
-     main = expression("Histogram for" ~ mu[2]), xlab = expression(mu[2]))
+     main = expression("Posterior Distribution of" ~ mu[2]), xlab = expression(mu[2]))
 abline(v = mean(metro_hasti[-warmup,2,]), col = "red", lwd = 2)
 ```
 
 ### Tuning
 
-The Metropolis and Metropolis-Hasting algorithms are sensitive to tuning. Above we used a fairly inefficient tuning parameter `prop_scale = 0.005` (this is apparent in the large number of accepted proposals). It is inefficient in the sense that it over accepted proposals out in the tails. This isn't a huge problem it we run a large number of iterations, but that is not always feasible.
+The Metropolis and Metropolis-Hasting algorithms are sensitive to tuning. Above we used a fairly inefficient tuning parameter `prop_scale = 0.005` (this is apparent in the large number of accepted proposals). It is inefficient in the sense that it over accepted proposals out in the tails. (In this example we know that the tails are not a particularly interesting part of the distribution since our likelihood is multivariate normal and our priors are normal.) This isn't a huge problem it we run a large number of iterations, but that is not always feasible. Below we rerun the model with a more efficient value for the tuning parameter.
 
 ``` {r include=TRUE}
 metro_hasti_tuned <- metropolis_hastings(f = posterior_func,
                                    iter = 2e3, chains = 4, init = init_val,
-                                   prop_scale = 0.1, prop_loc = colMeans(dat))
+                                   prop_scale = 0.1)
 ```
 
-If we plot the first 100 iterations, notice that the chains with the inefficient tuning parameter did not even get a chance to mix under the center mass of the distribution. However, with better tuning there is already a lot of mixing taking place. 
+If we plot the first 100 iterations, notice that the chains with the inefficient tuning parameter did not even get a chance to mix under the center mass of the distribution. However, with better tuning there is already a lot of mixing taking place. Remember, the whole point of sampling from an unknown distribution is to get to the interesting part of the distribution and explore it.
 
 ```{r, echo=FALSE, fig.align='center', fig.height=5, fig.width=10}
 par(mfrow=c(1,2))
@@ -635,27 +645,214 @@ for(i in 1:4) {
 }
 ```
 
-## Hamiltonian Monte Carlo Algorithm
+## Hamiltonian Monte Carlo
 
-*ALGORITHM*
+The [Hamiltonion Monte Carlo]() algorithm is a concept borrowed from Physics that does a more efficient job of exploring the target distribution. It does this by supressing the random walk behavior in Metropolis-Hastings. First, we need to define a few of new components.
 
-* Step 1
-* Step 2
+In order to do HMC we need the [gradient](https://en.wikipedia.org/wiki/Gradient) of the posterior distribution with respect to the parameters. If we have a function that takes several inputs then the gradient is the vector of first order deriviatives, where each element in the gradient is the derivative of the function with respect to each parameter. Formally, say we have a function that takes $J$ parameters and outputs a scalar value, $f: \mathbb{R}^J \rightarrow \mathbb{R}$. Then the gradient of $f$ is $\triangledown f = \bigg(\frac{df}{d\theta_1},\frac{df}{d\theta_2},\ldots,\frac{df}{d\theta_J}\bigg)$.
 
-## Aside: Gibbs Sampling
+For each unknown parameter $\theta_j$ we also need a momementum variable $\phi_j$. Typically $\vec{\phi}$ has a multivariate normal distribution with mean zero and covariance matrix $M$. Often $M$ is a diagonal matrix so that the elements of $\vec{\phi}$ are independent of each other. Tuning of the algorithm involves multipling $M$ by some scalar quanity $\varepsilon$ that the user can initialize. We say initialize since the algorithm can be setup so that the tuning parameter adapts as the chain explores the target distribution.   
 
-**Gibbs sampling** requires that your priors are **conjugate priors**. This means that your prior distribution and posterior distribution belong to the same family of distributions. This involves specifying the kernel of $p(\theta|y)$, recognizing what distribution this kernel represents, and then drawing from this distribution. This method of sampling is not used so much given the restriction of using conjugate priors and that the transition of the sampler moves at right angles across the distribution.
+**ALGORITHM** (Hamiltonian Monte Carlo)
 
-```{r include=TRUE}
-library(mvtnorm)
-y <- rmvnorm(100, c(0, 3))
-gibbs <- function(y, y_0, iter, rho = 0.5) {
-  out <- array(iter, ncol(y))
-  out <- unif()
-  for(i in 1:iter) {
-    mu1 <- rnorm(1, mu2)
-    mu2 <- rnorm(1, mu1)
-    out(i,) <- cbind(mu1,mu2)
+1. Repeat (1)-(4) $N$ times (where $N$ is the total number of iterations). Set initial values for $\vec{\theta}$ and the tuning parameter and repeat. Draw $\vec{\phi}$ with $\vec{\phi} \sim \mathcal{MN}(\vec{0}, M)$.
+2. Repeat (a)-(c) $L$ times to complete one leapfrog step.
+    a. Perform a half update on the momentum vector $\vec{\phi} \leftarrow \vec{\phi} + \frac{1}{2}\varepsilon\triangledown f(\vec{\theta})$
+    b. $\vec{\theta} \leftarrow \vec{\theta} + \varepsilon M^{-1}\vec{\phi}$
+    c. $\phi \leftarrow \phi + \frac{1}{2}\varepsilon \triangledown f(\vec{\theta})$.
+3. Compute the ratio $\alpha = \frac{f(\vec{\theta}^*|y)p(\vec{\theta}^*)}{f(\vec{\theta}|y)p(\vec{\theta})}$.
+4. If $u < \alpha$ then $\vec{\theta}_n = \vec{\theta}^*$, else $\vec{\theta}_n = \vec{\theta}_{n-1}$.
+
+
+The code below creates a function that runs the HMC algorithm using the bivariate normal distribution as the proposal distribution $g$. 
+```{r}
+# HAMILTONIAN MONTE CARLO
+
+#' A Rejection Sampling algorithm where proposals are generated from Unif(0,1).
+#' @param f Target distribution.
+#' @param iter Number of iterations to run the algorithm through.
+#' @param chains Number of chains.
+#' @param init_val initial values for each chain.
+#' @param epsilon_init inital value for tuning parameter.
+#' @param M symmetric mass matrix for momentum parameter distribution.
+#' @param L Number of leapfrog steps.
+#' @return An array of iterations by parameters by chains.
+hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, M = diag(1,2), L_0 = 10) {
+  out <- array(NA, c(iter, 2, chains))
+  phi <- array(NA, c(iter, 2, chains))
+  if(is.null(init_val))
+    out[1,,] <- t(rmvnorm(chains, c(0,0), diag(1,2)))
+  else
+    out[1,,] <- init_val
+  phi[1,,] <- rmvnorm(chains, c(0,0), M)
+  
+  gradient <- function(theta) {
+    e <- 1e-4
+    out <- array(NA, length(theta))
+    for(t in 1:length(theta)) {
+      # browser()
+      theta_hi <- theta_lo <- theta
+      theta_hi[t] <- theta[t] + e
+      theta_lo[t] <- theta[t] - e
+      out[t] <- (f(theta_hi) - f(theta_lo)) / (2 * e)
+      # browser()
+    }
+    out
   }
+  
+  sampler <- function(theta) {
+    phi <- c(rmvnorm(1, mean = c(0,0), sigma = M))
+    grad <- gradient(theta)
+    epsilon <- runif(1, 0, 2 * epsilon_init)
+    L <- ceiling(2 * L_0 * runif(1,0,1))
+    for (l in 1:L) {
+      phi <- phi + 0.5 * epsilon * grad
+      theta <- theta + epsilon * solve(M) %*% phi
+      phi <- phi + 0.5 * epsilon * grad 
+    }
+    return(list("theta" = c(theta), "phi" = c(phi)))
+  }
+  
+  accept_reject <- function(theta_star, theta, phi_star, phi) {
+    dens_theta_star <- f(theta_star)
+    dens_theta <- f(theta)
+    dens_phi_star <- dmvnorm(phi_star, c(0,0), M, log = TRUE)
+    dens_phi <- dmvnorm(phi, c(0,0), M, log = TRUE)
+    alpha <- exp((dens_theta_star + dens_phi_star) - (dens_theta + dens_phi))
+    alpha
+  }
+  
+  cat(paste0("['.' = ", iter/10, " iterations]\n"))
+  
+  for(j in 1:chains) {
+    cat(paste0("[ chain ", j, " ]"))
+    for(i in 2:iter) {
+      alpha <- 0
+      u <- 1
+      while(alpha < u) {
+        u <- runif(1, 0, 1)
+        sample <- sampler(out[i-1,,j])
+        alpha <- accept_reject(sample$theta, out[i-1,,j], sample$phi, phi[i-1,,j])
+      }
+      phi[i,,j] <- sample$phi
+      out[i,,j] <- sample$theta
+      if(i%%(iter/10) == 0)
+        cat(".")
+      if(i == iter)
+        cat("[ complete ]\n")
+    } 
+  }
+  out
 }
 ```
+
+The code below sets up the parameters, creates the data, and specifies the posterior distribution function we want to sample from.
+
+```{r include=TRUE}
+# parameters
+covmat <- rbind(c(1,0.9),c(0.9,1))
+N <- 1e3
+priors <- cbind(rnorm(N, 0, 1), rnorm(N, 0, 1))
+# priors <- cbind(rep(0,N), rep(0,N))  # fixed
+# data
+dat <- array(NA, c(N, 2))
+for(i in 1:N) {
+  dat[i,] <- rmvnorm(1, mean = priors[i,], sigma = covmat) 
+}
+# posterior distribution
+post_func <- function(theta) {
+  lik <- sum(dmvnorm(dat, theta, covmat, log = TRUE))
+  prior <- dnorm(theta, 0, 0.1, log = TRUE)
+  return(lik + sum(prior))
+}
+```
+
+We are modeling the data as being generated from the bivariate normal distriubtion with known covariance matrix $\Sigma$, with standard normal priors on the means. Formally,
+$$
+y \sim \mathcal{MN}({\vec{\theta}, \Sigma}) \\
+\theta_1 \sim \mathcal{N}(0, 1) \\
+\theta_2 \sim \mathcal{N}(0, 1) \\
+$$
+
+```{r}
+# setup initial conditions
+init_val <- cbind(c(1,1),
+                  c(-1,-1),
+                  c(1,-1),
+                  c(-1,1))
+init_val <- init_val * 4
+
+# run HMC
+hmc_sim <- hmc(f = post_func, iter = 1e3, init_val = init_val, epsilon_init = ((1/15)^2), M = diag(1,2), L_0 = 10)
+```
+
+We can compare the means from the data and from the parameters sampled using HMC.
+
+```{r}
+mean_table <- rbind("mean data" = colMeans(dat), "mean posterior" = rowMeans(colMeans(hmc_sim)))
+colnames(mean_table) <- c("mu1", "mu2")
+mean_table
+```
+
+We had a lot of data and not such a complicated model so it makes sense that (what would be) the maximum likelihood estimate is close to the posterior means for each location parameter.
+
+The figure below plots the traceplot of both parameters.
+
+```{r, echo=FALSE, fig.align="center", fig.height=5, fig.width=10}
+par(mfrow=c(1,2))
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+     ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[1]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], col = cols[i], lwd = 2)
+}
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+     ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[2]))
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+```
+
+The figure below illustrates the covergence of the chains in two dimensions. A contour plot of the actual posterior distribution is overlayed. Notice that all of the mixing is taking place in the center mass of the distribution.
+
+```{r, echo=FALSE, fig.align="center", fig.height=5, fig.width=10}
+# setup the data for the contour plot
+post_func_vectorized <- 
+  Vectorize(
+  function(x,y) {
+  theta <- c(x,y)
+  lik <- sum(dmvnorm(dat, theta, covmat, log = TRUE))
+  prior <- dnorm(theta, 0, 0.1, log = TRUE)
+  return(lik + sum(prior))
+})
+
+par(mfrow=c(1,2))
+x <- y <- seq(-4,4,0.1)
+z <- outer(x, y, FUN = post_func_vectorized)
+plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
+     ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+contour(x, y, z, add = TRUE, col = "#808080", lwd = 2)
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+
+plot(0, type = "n", xlim = range(hmc_sim[,1,])/30, ylim = range(hmc_sim[,2,])/30, 
+     ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+x <- y <- seq(-0.15,0.15,0.005)
+z <- outer(x, y, FUN = post_func_vectorized)
+contour(x, y, z, add = TRUE, col = "#808080", lwd = 2)
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+```
+
+## References
+
+Blitzstein, J. K. and Hwang, J. (2014) *Introduction to Probaability*.
+Chapman & Hall/CRC Press, New York.  
+
+Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A.,
+and Rubin, D. B. (2013) *Bayesian Data Analysis*, 3rd
+Edition. Chapman & Hall/CRC Press, London.  
+
+Robert,  C. P. and Casella, G. (2010) *Introducing Monte Carlo Methods with R*.
+Springer, New York.  

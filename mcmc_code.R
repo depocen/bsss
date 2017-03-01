@@ -529,19 +529,35 @@ for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
 
-x <- y <- seq(-4,4,0.01)
+x <- y <- seq(-4,4,0.1)
 z <- outer(x, y, FUN = function(x, y){dmvnorm(cbind(x,y), colMeans(dat), covmat)})
-plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
+plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]),
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
 contour(x, y, z, add = TRUE, col = "#808080")
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
 
+z <- outer(x, y, FUN = Vectorize(function(x,y) {
+  theta <- c(x,y)
+  lik <- sum(dmvnorm(dat, theta, covmat, log = TRUE))
+  prior <- dnorm(theta, 0, 0.1, log = TRUE)
+  return(lik + sum(prior))
+}))
+
+plt_dat <- expand.grid(x,y)
+plt_dat$z <- apply(cbind(plt_dat$Var1, plt_dat$Var2), 1, post_func)
+plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
+     ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
+contour(x, y, plt_dat$z, add = TRUE, col = "#808080")
+for(i in 1:dim(hmc_sim)[3]) {
+  lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
+}
+
 plot(0, type = "n", xlim = range(hmc_sim[,1,])/30, ylim = range(hmc_sim[,2,])/30, 
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
-x <- y <- seq(-0.2,0.2,0.01)
-z <- outer(x, y, FUN = function(x, y){dmvnorm(cbind(x,y), colMeans(dat), covmat)})
+x <- y <- seq(-0.15,0.15,0.00005)
+z <- outer(x, y, FUN = function(x, y){dmvnorm(cbind(x,y), colMeans(dat), covmat, log = TRUE)})
 contour(x, y, z, add = TRUE, col = "#808080")
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
@@ -556,7 +572,7 @@ params <- rbind(hmc_sim[,,1],
 hmc_draws <- t(apply(params, 1, function(x){rmvnorm(1, x, covmat)}))
 binorm_draws <- rmvnorm(4e3, colMeans(dat), covmat)
 plot(binorm_draws, cex = 0.5, col = "#80808096", xlim = c(-6, 6), ylim = c(-6, 6),
-     main = "Comparing Random Samples", xlab = expression(x[1]), ylab = expression(x[2]))
+     main = "Posterior Predictions", xlab = expression(x[1]), ylab = expression(x[2]))
 points(hmc_draws, col = "#cc000096", cex = 0.5)
 legend("bottomright", c("HMC","Draws"), col = c("#cc000096","#80808096"), pch = rep(21,2), pt.lwd = rep(2,2), cex = 0.6)
 
