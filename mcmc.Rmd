@@ -1,5 +1,5 @@
 ---
-title: "MCMC and Algorithms"
+title: "Markov Chain Monte Carlo Algorithms in Bayesian Statistics"
 author: "Imad Ali"
 date: "2/14/2017"
 header-includes:
@@ -20,17 +20,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-This note serves as an overview of some of the algorithms used in Bayesian statistics, starting with an introduction to markov chains and Monte Carlo methods; the two fundamental components that make up a **Markov Chain Monte Carlo** (MCMC) process.
+This note serves as an overview of some of the algorithms used in Bayesian statistics, starting with an introduction to Markov chains and Monte Carlo methods; the two fundamental components that make up a **Markov Chain Monte Carlo** (MCMC) process. First, we talk about the components of an MCMC process: Markov chains and Monte Carlo methods. Then we use these tools understand how the Metropolis-Hastings and Hamiltonian Monte Carlo algorithms explore the posterior distribution.
 
 ## Random Walks
 
-A [random walk]() pretty much does what it says on the tin. It's a collection of random steps that, when plotted, represent a random process. An often used example is a particle moving in one dimension. With equal probability the partical moves up or down at time $t$ relative to it position at time $t-1$. This can be represented with a Bernoulli probability mass function. Another example would be to let $\varepsilon ~ \mathcal{N}(0,1)$ and define,
+A [random walk](https://en.wikipedia.org/wiki/Random_walk) is a special case of a Markov chain. It does precisely what you think it does; randomly move through some mathematical space. The canonical example is a particle moving in one dimension. With equal probability the particle moves up or down at time $t$ relative to it position at time $t-1$. This behaviour can be represented with a Bernoulli probability mass function. Another example would be to let $\varepsilon ~ \mathcal{N}(0,1)$ and define,
 $$
 X_n = X_{n-1} + \varepsilon
 $$
-which gives us a continuous random walk.
+which results in a continuous one-dimensional random walk.
 
-The code below computes a discrete random walk in two dimensions with equal probabilities being asigned to each movement: up, down, left, or right.
+The code below computes a discrete random walk in two dimensions with equal probabilities being assigned to each movement: up, down, left, or right. It uses the `sample()` function but `rbinom()` could have been used instead by defining $(1,2,3,4) \equiv (\mbox{up, down, left, right})$.
 
 ```{r random_walk, include = TRUE}
 # RANDOM WALK
@@ -76,13 +76,11 @@ Consider a sequence of random variables $X_0, X_1, X_2, \ldots$ where $X_n$ deno
 $$
 P(X_{n} = j | X_{n-1} = i)
 $$
-where $j$ and $i$ are values from the **state space**. The conditional probability above is the **transition probability** of moving from state $i$ in time $n-1$ to state $j$ in time $n$.
+where $j$ and $i$ are values from the **state space**. The conditional probability above is known as the **transition probability** of moving from state $i$ in time $n-1$ to state $j$ in time $n$.
 
-The mathematical statement above is best summarized with the **Markov property**, which states that only the most recent term $X_{n-1}$ of all the past values $X_{n-1}, X_{n-2}, X_{n-3}, \ldots, X_0$ influences the prediction of the future state $X_n$. This also means that $X_n$ and $X_{n-2}, X_{n-3}, \ldots, X_0$ are conditionally independent. One useful feature of Markov chains is that it saves us from having to use the entire history to predict the future value.
+The mathematical statement above is best summarized with the **Markov property**, which states that only the most recent term $X_{n-1}$ of all the past values $X_{n-1}, X_{n-2}, X_{n-3}, \ldots, X_0$ influences the prediction of the future state $X_n$. This also means that $X_n$ and $X_{n-2}, X_{n-3}, \ldots, X_0$ are conditionally independent. One useful feature of Markov chains is that it saves us from having to use the entire history of states of the chain to predict the next state.
 
-To simulate a Markov chain we need to compute the probability of moving from one state to the next. These probabilities can be encoded in a **transition matrix**, the $(i,j)$ element of which defines the probability of moving to state $j$ from state $i$ for all $i,j = 1, 2, \ldots, K$$.A transition matrix is square since, given the present state, it must describe the probability of moving to each possible state. Additionally, the probabilities of moving to each state are disjoint (e.g. if our states are directions then it's not possible to both move up and down). As a result the rows of the transition matrix sum to one (i.e. the states represent all the events in the sample space.)
-
-Note that
+To simulate a Markov chain we need to compute the probability of moving from one state to the next. These probabilities can be encoded in a **transition matrix**, the $(i,j)$ element of which defines the probability of moving to state $j$ from state $i$ for all $i,j = 1, 2, \ldots, K$.A transition matrix is square since, given the present state, it must describe the probability of moving to every state. Additionally, the probabilities of moving to each state are disjoint (e.g. if our states are directions then it's not possible to both move up and down). As a result the rows of the transition matrix sum to one (i.e. the states represent all the events in the sample space.)
 
 Now we want to describe how to actually make the move from state $n-1$ to state $n$. Let the $1 \times K$ vector $\vec{v}_n$ denote the probabilites of the state at $n$ and let $M$ denote the $K \times K$ transition matrix. Then the marginal distribution of each state is given applying the [law of total probability](https://en.wikipedia.org/wiki/Law_of_total_probability) in the following way,
 $$
@@ -90,9 +88,9 @@ $$
 $$
 Each element $j$ of $\vec{v}_n$, is equal to $\sum_{i=1}^{K} (\vec{v}_{n-1})_i \cdot M_{i,j}$. In other words the $j^{th}$ element of $\vec{v}_n$ is the dot product of $\vec{v}_{n-1}$ and the $j^{th}$ column of $M$.
 
-Intutively this makes sense. We start with a vector of probabilities describing our previous state and a transition matrix describing the move to the next state. Each column of the transition matrix defines a $K$ vector of probabilities associated with moving to *a specific state* $j$ given each of the previous states the chain could be at $i = 1, 2, \ldots, K$. Then, applying the law of total probability, the sum of the product of the probability of being at each previous state $i$ and the associated probability of moving to the next state (given by the $(i,j)$ element of the transition matrix) will give the marginal probability of the next state $j$.
+Intutively this makes sense. We start with a vector of probabilities describing our previous state and a transition matrix describing the move to the next state. Each column of the transition matrix defines a $K$ vector of probabilities associated with moving to *a specific state* $j$ given each of the previous states the chain could be at $i = 1, 2, \ldots, K$. Then, applying the law of total probability, the sum of the product of the probability of being at each previous state $i$ and the associated probability of moving to the next state $j$ (given by the $(i,j)$ element of the transition matrix) will give the marginal probability of moving to the next state $j$.
 
-Similar to the random walk above, we simulate two Markov chains moving through two dimensional space with the movements: up, down, left, and right.
+Similar to the random walk example above, we simulate two Markov chains moving through two dimensional space with the movements: up, down, left, and right.
 
 The first Markov chain emulates a random walk and uses the following transition matrix,
 $$
@@ -105,7 +103,7 @@ M =
 \end{bmatrix}
 $$
 
-where each column of $M$ denotes the state probabilities for moving to state $j$ at time $n$ given the probabilities at state $i \in (\mbox{up, down, left, right})$ at time $n-1$, and each row $M$ denotes the probability of moving to each new state $j \in (\mbox{up, down, left, right})$ given state $i$. This is a **Markov chain as a random walk** since equal weight has been put on moving from state $i$ to state $j$ for all $j \in (\mbox{up, down, left, right})$. For example, given that the chain's previous state was up the probability of moving up is $M_{1,1} = 0.25$ which is equal to the probability of moving down $M_{1,2} = 0.25$ (and is also equal to the probability of moving left/right).
+where each column of $M$ denotes the state probabilities for moving to state $j$ at time $n$ given the probabilities at state $i \in (\mbox{up, down, left, right})$ at time $n-1$, and each row $M$ denotes the probability of moving to each new state $j \in (\mbox{up, down, left, right})$ given state $i$ at time $n-1$. This is a **Markov chain as a random walk** since equal weight has been put on moving from state $i$ to state $j$ for all $j \in (\mbox{up, down, left, right})$. For example, given that the chain's previous state was up, the probability of moving up is $M_{1,1} = 0.25$ which is equal to the probability of moving down $M_{1,2} = 0.25$ (and is also equal to the probability of moving left/right).
 
 The second Markov chain uses the following transition matrix,
 $$
@@ -117,9 +115,9 @@ M =
  0   & 0.1 & 09 & 0\\
 \end{bmatrix}
 $$
-This type of transition matrix encourages the Markov chain to move in the opposite direction compared to its previous state. For example, if our previous state was moving up then (going across the top row of $M$) the next state is up with probability 0, down with probability 0.9, left with probability 0, and right with probability 0.1. From this point we will most likely move down. If so then (going across the second row of $M$) we move back up with probability 0.9 and left with probability 0.1. But there is also a 0.1 chance that we could move right after moving up. Then (going across the last row) we would move up with probability 0, down with probability 1, left with probability 0.9, and right with probability 0.
+This type of transition matrix encourages the Markov chain to move in the opposite direction compared to its previous state. For example, if our previous state was moving up then (going across the top row of $M$) the next state is up with probability 0, down with probability 0.9, left with probability 0, and right with probability 0.1. From this point we will most likely move down. If so then (going across the second row of $M$) we move back up with probability 0.9 and left with probability 0.1. But, given the previous state of moving up, there is a 0.1 chance that we could move right after moving up. Then (going across the last row) we would move up with probability 0, down with probability 1, left with probability 0.9, and right with probability 0.
 
-The function that we run the Markov chain through is provided below.
+The function that we use to run the Markov chain through is provided below.
 
 ```{r, markov_chain, include=TRUE}
 # MARKOV CHAIN FUNCTION
@@ -128,7 +126,7 @@ The function that we run the Markov chain through is provided below.
 #' @param transition_matrix A symmetric matrix of probabilities. Rows must sum to one.
 #' @param iter Number of steps to take over the 2D space.
 #' @param init Initial position in the 2D space.
-#' @param state Initial state to start the Markov Chain.
+#' @param state Initial state values to start the Markov Chain.
 #' @return The probabilities (prob) that are used to calculate the movement (move) and the data (dat) that
 #' describes the movemement over 2D space.
 markov_chain <- function(transition_matrix, iter = 1e3, init = c(0,0), state = c(1,0,0,0)) {
@@ -168,7 +166,7 @@ markov_chain <- function(transition_matrix, iter = 1e3, init = c(0,0), state = c
 }
 ```
 
-Now we run the simulations using each transition matrix with the initial condition $v_0 = (0, 0, 1, 0)$.
+Now we run the simulations using each transition matrix with the initial state values $v_0 = (1, 0, 0, 0)$.
 
 ```{r include=TRUE}
 # MARKOV CHAIN (as a random walk)
@@ -185,6 +183,7 @@ trans_prob <- rbind(c(0, 0.9, 0, 0.1),
 colnames(trans_prob) <- row.names(trans_prob) <- c("up", "down", "left", "right")
 mc <- markov_chain(trans_prob, iter = iter)
 ```
+The plot below overlays the "negating" Markov chain with the random walk Markov chain.
 
 ```{r echo=FALSE, fig.height=10, fig.width=10, fig.align='center'}
 y_range <- range(range(mc$dat[,2]), range(mc_rw$dat[,2]))
@@ -204,29 +203,30 @@ legend("topright", c("Negating", "Random Walk", "Initial Value"),
 ```
 
 Below are the probabilities and associated move (via sampling from the binomial distribution) of the first 10 steps of the negating Markov chain.
+
 ```{r echo=FALSE}
 first10 <- head(data.frame(mc), n = 10)
 colnames(first10)[1:6] <- c("x", "y", colnames(trans_prob))
 first10
 ```
 
-
 ## Monte Carlo Methods
 
-A [Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_method) method is typically used as a way to use random sampling to numerically solve a probablem that is not analytically tractable (e.g. the area under a a curve). The algorithm proceeds as follows,
+[Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_method) methods can be used as a way to apply random sampling to numerically solve a problem (e.g. the area under a a curve). This is especially useful if the solution is not analytically tractable. An overview of the algorithm is outlined below,
 
 **ALGORITHM** (Monte Carlo Method)
 
-1. Define the domain.
-2. Sample from the domain according to some probability distribution (e.g. uniform)
-3. Perform a deterministic computation using (2)
-4. If (4) is true then accept the inputs, else reject
-5. Aggregate the results.
+1. Define the domain of the function's inputs.
+2. Sample from the domain according to some probability distribution (e.g. uniform).
+3. Perform a deterministic computation using (2) as an input.
+4. Accept or reject the value proposed in (2) based on some criterion that involves the value from (3).
+6. Aggregate the results.
 
+We apply this method below to approximate $\pi$ and in rejection sampling.
 
 ### Estimating $\pi$
 
-Using Monte carlo methods we can estimate the mathematical constant $\pi$ which is equal to ratio of the circumference to the diameter. Consider a unit circle inscribed in a square. The are of the circle is $\pi$ and the area of the square is 4, so the ratio of the area of the circle and the square is $\pi/4$. Now all we need to do is construct a Monte Carlo method to estimate this ratio and multiply the result by 4 to get an estimate of $\pi$.
+Using Monte Carlo methods we can estimate the mathematical constant $\pi$, which is defined as the ratio of the circumference to the diameter of a circle. Consider a unit circle inscribed in a square (i.e. a circle with radius $r=1$). The area of the circle is $\pir^2 = \pi$ and the area of the square is 4, so the ratio of the area of the circle and the square is $\pi/4$. Now all we need to do is construct a Monte Carlo method to estimate this ratio and multiply the result by 4 to get an estimate of $\pi$.
 
 1. Define the domain as $x\in[0,1]$ and the range as $y\in[0,1]$.
 3. Sample x and y with $x,y\sim Unif(0,1)$.
@@ -256,7 +256,8 @@ for(i in 1:iter) {
 cat('estimate of pi = ', (nrow(na.omit(accept)) / iter) * 4)
 ```
 
-The figure below illustrates the accepted and rejected values.
+The estimate is close, but not without some numerical error. The figure below illustrates the accepted (pink) and rejected (grey) values as well as the deterministic function that defines a circle.
+
 ```{r echo=FALSE, fig.align='center', fig.width=6, fig.height=6}
 plot(0, type = "n", xlim = range(accept[,1], na.rm = TRUE), ylim = range(accept[,2], na.rm = TRUE),
      main = expression("Estimating" ~ pi ~ "Using Monte Carlo Simulation"),
@@ -268,15 +269,15 @@ rect(0, 0, 0.4, 0.1, border = NA, col = rgb(255, 255, 255, alpha = 200, max = 25
 text(0.2,0.05, bquote(pi %~~% ~ .((nrow(na.omit(accept)) / iter) * 4)), col = "black")
 ```
 
-### Accept-Reject Algorithm
+### Rejection Sampling
 
-The **accept-reject algorithm** is a Monte Carlo method that enables you to sample from a probability distribution. Let $f$ be the target distribution (i.e. the distribution you want to get samples from) and let $g$ be the candidate distribution (i.e. the distribution you use to randomly sample out of the domain of interest). We need these distributions to statisfy two conditions. First, both $g$ and $f$ need to be defined over the same support. Second, from some value in the support $f(x)/g(x) \leq  M$ for some constant $M$. The algorithm proceeds as follows,
+**Rejection sampling** is a Monte Carlo method that enables you to sample from a probability distribution using the distribution's probability density/mass function and the uniform distribution. Let $f$ be the target distribution (i.e. the distribution you want to get samples from) and let $g$ be the candidate distribution (i.e. the distribution you use to randomly sample out of the domain of interest). We need these distributions to satisfy two conditions: 1) both $g$ and $f$ need to be defined over the same support, 2) from all values in the support we need some constant $M$ such that $f(x)/g(x) \leq  M$ . Here, $M$ is interpreted as the bound on the likelihood ratio. The algorithm proceeds as follows,
 
 **ALGORITHM** (Rejection Sampling)
 
 1. Generate $y$ from the proposal distribution $g$.
-2. Calculate the likelihood ratio $\alpha = f(y)/(Mg(y))$ where $M$ is a bound on the likelihood ratio.
-3. Generate a stochastic condition $u ~ Unif(0,1)$.
+2. Calculate the likelihood ratio $\alpha = f(y)/(Mg(y))$.
+3. Generate a stochastic condition $u ~ Unif(a,b)$, where the support of $f$ is $[a,b]$.
 4. If $\alpha > u$ accept $y$, else reject.
 
 ```{r rejection_sampling, include=TRUE}
@@ -312,13 +313,13 @@ accept_reject <- function(f, g, support = c(0,1), M = 1, iter = 1e3) {
 
 The code below applies rejection sampling to sample from the beta distribution using different values of $M$.
 
-```{r include=TRUE, cache=TRUE}
+```{r include=TRUE}
 beta_sample1 <- accept_reject(f = function(x){dbeta(x, 2, 2)},
                              g = function(x, a, b){dunif(x, a, b)},
-                             M = 1, iter = 1e4*4)
+                             M = 1, iter = 1e4)
 beta_sample2 <- accept_reject(f = function(x){dbeta(x, 2, 2)},
                               g = function(x, a, b){dunif(x, a, b)},
-                              M = 2, iter = 1e4*4)
+                              M = 2, iter = 1e4)
 ```
 
 The table below describes the total number of accepted (`TRUE`) and rejected (`FALSE`) values in each sampling procedure.
@@ -326,11 +327,11 @@ The table below describes the total number of accepted (`TRUE`) and rejected (`F
 cbind("M=1" = table(is.na(beta_sample1$reject)), "M=2" = table(is.na(beta_sample2$reject)))
 ```
 
-Notice that with a low value of $M$ we ended up accepting too many values. In fact, what ended up happening is that we over accepted where $f$ has more mass. This is apparent in the figure below which plots the accepted and rejected values. When $M=1$, the empirical beta distribution getting squashed around its expected value. With a more adequate value for $M$ (such as $M=2$) we get a better approximation of the true beta distribution. (For comparison purposes, the figure on the far left plots samples from the $Beta(2,2)$ distribution using the R function `rbeta()`.)
+Notice that with a low value of $M$ we ended up accepting too many values. In fact, what ended up happening is that we over accepted in the tails of the beta distribution, making it appear as though the distribution has been squashed from above. This is apparent in the center plot of the figure below which illustrates the accepted (pink) and rejected (blue) values. With an inappropriate likelihood ratio bound (e.g. $M=1$), the empirical beta distribution over accepts in the tails. With a more adequate value for the bound (e.g. $M=2$) we get a better approximation of the true beta distribution. (For comparison purposes, the figure on the far left plots samples from the $Beta(2,2)$ distribution using the R function `rbeta()`.)
 
 ```{r echo=FALSE, fig.align='center', fig.height=4, fig.width=12}
 par(mfrow=c(1,3))
-hist(rbeta(1e4*4, 2, 2), freq = F, breaks = 50, col = "#808080", border = FALSE, ylim = c(0,5),
+hist(rbeta(1e4, 2, 2), freq = F, breaks = 50, col = "#808080", border = FALSE, ylim = c(0,5),
      main = "Beta(2,2) Histogram", xlab = "x")
 hist(na.omit(beta_sample1$reject), freq = F, breaks = 50, col = rgb(64, 210, 254, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,5),
@@ -338,28 +339,34 @@ hist(na.omit(beta_sample1$reject), freq = F, breaks = 50, col = rgb(64, 210, 254
 hist(na.omit(beta_sample1$accept), freq = F, breaks = 50, col = rgb(230, 61, 149, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,2), add = T)
 abline(h = 1, col = "black", lty = 2)
+legend("top", c("Accept", "Reject", "M"),
+       col = c(col = rgb(230, 61, 149, alpha = 150, max = 255), col = rgb(64, 210, 254, alpha = 150, max = 255), "black"),
+       lwd = c(NA,NA,1), lty = c(NA,NA,2), pch = c(15,15,NA), pt.cex = 2, cex = 0.8, bty = "n")
 hist(na.omit(beta_sample2$reject), freq = F, breaks = 50, col = rgb(64, 210, 254, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,5),
      main = "Accept Reject for Beta(2,2) with M = 2", xlab = "x")
 hist(na.omit(beta_sample2$accept), freq = F, breaks = 50, col = rgb(230, 61, 149, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,2), add = T)
 abline(h = 2, col = "black", lty = 2)
+legend("top", c("Accept", "Reject", "M"),
+       col = c(col = rgb(230, 61, 149, alpha = 150, max = 255), col = rgb(64, 210, 254, alpha = 150, max = 255), "black"),
+       lwd = c(NA,NA,1), lty = c(NA,NA,2), pch = c(15,15,NA), pt.cex = 2, cex = 0.8, bty = "n")
 ```
 
-If we state our acceptance rule as $u \leq f(y)/(Mg(y)) \implies u(Mg(y)) \leq f(y)$ then why this is happening should be clear. If $M_1 < M_2$ then for any given $u$ and $y$, $u(M_1g(y)) < u(M_2g(y))$ which means that the condition $u(M_1g(y)) \leq f(y)$ will end up accepting $y$ more than $u(M_2g(y)) \leq f(y)$.
+If we state our acceptance rule as $u \leq f(y)/Mg(y) \implies uMg(y) \leq f(y)$ then why this is happening should be clear. If $M_1 < M_2$ then for any given $u$ and $y$ we have $uM_1g(y) < uM_2g(y)$ which means that the condition $uM_1g(y) \leq f(y)$ would more likely accept $y$ compared to $uM_2g(y) \leq f(y)$.
 
 ## Metropolis
 
-Now we want to combine these two aforementioned ideas of Markov chains and Monte Carlo methods. If we use a Markov chain to move through some mathematical space and sample according to some Monte Carlo method then what we have is called **Markov chain Monte Carlo** (MCMC). The [Metropolis algorithm] is a simple case of this. Again, we have a target distribution $f$ that we are interested in sampling from and a *symmetric* candidate distribution $g$ that we generate proposals from. Let the index $n$ denote the current position of the chain. The algorithm proceeds as follows,
+Now we want to combine these two aforementioned ideas of Markov chains and Monte Carlo methods. If we use a Markov chain to move through some mathematical space and sample according to some Monte Carlo method then what we have is called **Markov chain Monte Carlo** (MCMC). The [Metropolis algorithm](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm) is a simple case of this. Again, we have a target distribution $f$ that we are interested in sampling from and a *symmetric* proposal (or candidate) distribution $g$ that we generate proposals from. Let the index $n$ denote the current position of the chain. The algorithm proceeds as follows,
 
 **ALGORITHM** (Metropolis)
 
-1. Generate $x^* \sim g(x_n)$
+1. (Repeat 1-4 J times.) Generate a proposal $x^* \sim g(x_n)$.
 2. Compute the acceptance ratio $\alpha = f(x^*)/f(x_n)$.
-3. Accept alpha with probability $min(1,\alpha)$ (i.e. if $\alpha < 1$ then we will need to compare it with a stochastic criterion $u \sim Unif(0,1)$ in order to determine whether we accept/reject the proposal.)
+3. Accept alpha with probability $min(1,\alpha)$. If $\alpha < 1$ then we will need to compare it with a stochastic criterion $u \sim Unif(0,1)$ in order to determine whether we accept/reject the proposal.
 4. If $x^*$ is accepted then $x_{n+1} = x^*$, else $x_{n+1} = x_{n}$.
 
-The code below creates a function that runs the Metropolis algorithm. The user can declare the number of iterations and the number of chains. Both are important inputs. The number of iterations ensures that we have a large enough sample from the distribution, and running chains with different initial values allows us to determine whether the samples converge. If they do not converge then we cannot perform any inferences on the sample since it does not adequately represent the distribution. Sometimes this can be remedied by increasing the number of iterations. In this
+The code below creates a function that runs the Metropolis algorithm. The user can declare the number of iterations and the number of chains. Both inputs dictate the whether the algorithm samples appropriately. The number of iterations ensures that we obtain a large enough sample from the distribution, and running chains with different initial values allows us to determine whether the samples converge. If they do not converge then we cannot perform any valid inferences on the samples since they do not adequately represent the distribution. Sometimes this can be remedied by increasing the number of iterations.
 
 ```{r metropolis, include=TRUE}
 # METROPOLIS ALGORITHM
@@ -398,7 +405,8 @@ metropolis <- function(f, iter = 1e3, chains = 4, prop_scale = 1) {
 }
 ```
 
-Before running the algorithm we need to define the posterior distribution that we want to sample from which is done in the code below.
+Before running the algorithm we need to define the posterior distribution that we want to sample from which is done in the code below. For numerical stability we define the log of the posterior distribution.
+
 ```{r, include=TRUE}
 dat <- rnorm(1, rnorm(10, 5, 5), 1)
 post_func <- function(x) {
@@ -409,22 +417,23 @@ post_func <- function(x) {
 ```
 
 Mathematically we can state our model as,
+
 $$
 y \sim N(\mu, 1) \\
 \mu \sim N(5,1)
 $$
 
-We run the algorithm and look at the median of the data and the median of the samples of $\mu$.
+Below we run the algorithm and look at the mean of the data and the mean of the samples of $\mu$.
 
 ```{r, include=TRUE}
 metro <- metropolis(f = post_func, chains = 4, iter = 2e3)
-rbind("median of data" =  median(dat),
-      "median of met samples" =  median(metro))
+rbind("mean of data" =  mean(dat),
+      "mean of met samples" =  mean(metro))
 ```
 
 It looks like we got closer to the true $\mu$ compared to the maximum likelihood estimate of $\mu$ (which would have been approximately equal to the mean of the data).
 
-In the figure below the plot on the top left illustrates the full length of all four chains. Although the chains start in disparate locations, they converge pretty quickly. This is not always the case, especially in complicated models. The initial steps are useful only insofar as they eventually take us to most of the mass of the distribution. We should discard most of these initial steps since they are not really exploring much of the mass distribution (the part that we find interesting). It is conventionally to regard the first half of each chain as a warmup (or burnin) for the algorithm and conduct inferences on the last half. Next, the plot on the top right presents the first 100 iteration of each chain and we can see that the chains converge within the first 100 iterations. The plot on the bottom left illustrates the last half of each chain. Finally, the plot on bottom right represents a histogram of the sampled values of $\mu$.
+In the figure below the plot on the top left illustrates the full length of all four chains. Although the chains start in disparate locations, they converge pretty quickly. This is not always the case, especially in complicated models. The initial steps are useful only insofar as they eventually take us to most of the mass of the distribution. We should discard these values since they are not exploring much of the mass distribution (the part that we find interesting). It is conventional to regard the first half of each chain as a warmup (or burnin) for the algorithm and conduct inferences on the last half. Next, the plot on the top right presents the first 100 iterations of each chain, and we can see that the chains actually converge within the first 100 iterations. The plot on the bottom left illustrates the last half of each chain (i.e. the samples that we can conduct valid inferences on). Finally, the plot on bottom right represents a histogram of the sampled values of $\mu$.
 
 ```{r echo=FALSE, fig.align='center', fig.height=9, fig.width=9}
 cols <- colorRampPalette(c("#ff6688","#336688"))(4)
@@ -435,7 +444,7 @@ cols <- c(rgb(255, 102, 136, alpha = 150, max = 255),
 
 par(mfrow = c(2,2))
 # traceplot of full length of chains
-plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,length(metro)), ylim = range(metro),
+plot(0, type = "n", xlab = "", ylab = "", xlim = c(0,dim(metro)[1]), ylim = range(metro),
      main = expression("Traceplot of " ~ mu))
 for(i in 1:4){
   lines(metro[1:dim(metro)[1],i], col = cols[i], lwd = 2)
@@ -461,9 +470,9 @@ abline(v = mean(metro), col = "red", lwd =2)
 
 ## Metropolis-Hastings
 
-The **Metropolis-Hastings algorithm** is similar to the Metropolis algorithm, however, we now relax the assumption that the proposal distribution $g$ has to be symmetric. The algorithm proceeds in the same was except that now our accept/reject condition is $u < \frac{f(x^*)}{f(x_n)}\frac{g(x_n|x^*)}{g(x^*|x_n)}$. The component $frac{g(x_n|x^*)}{g(x^*|x_n)}$ is included in the condition to correct for the asymmetry in the proposal distribution. The benefit of this is efficiency since, in some cases, using an asymmetric proposal distribution can increase the speed of the Markov chain.
+The **Metropolis-Hastings algorithm** is similar to the Metropolis algorithm, however, we now relax the assumption that the proposal distribution $g$ has to be symmetric. The algorithm proceeds in the same was except that now our accept/reject condition is $u < \frac{f(x^*)}{f(x_n)}\frac{g(x_n|x^*)}{g(x^*|x_n)}$. The component $\frac{g(x_n|x^*)}{g(x^*|x_n)}$ is included in the condition to correct for the asymmetry in the proposal distribution. This can improve efficiency since, in some cases, using an asymmetric proposal distribution can increase the speed of the Markov chain.
 
-The code below creates a Metropolis-Hastings function that allows you to sample from a bivariate distribution, where $g$ is the bivariate normal distribution.
+The code below creates a Metropolis-Hastings function that allows you to sample from a bivariate distribution where the proposal distribution $g$ is the bivariate normal distribution.
 
 ```{r metropolis-hastings, include=TRUE}
 # METROPOLIS-HASTINGS ALGORITHM
@@ -530,7 +539,7 @@ y \sim \mathcal{MN}(\vec{\mu}, \mathbf{\Sigma}) \\
 \vec{\mu}_2 \sim \mathcal{N}(0, 0.1) \\
 $$
 
-Where $\Sigma$ is a diagonal matrix with ones on the diagonal.
+Where the covariance matrix $\Sigma$ is known and is a $2 \times 2$ identity matrix.
 
 ```{r include=TRUE}
 library(mvtnorm)
@@ -571,7 +580,7 @@ colnames(mean_table) <- c("mu1", "mu2")
 mean_table
 ```
 
-Now we have examine the convergence of the chains. The plot below looks at convergence in the two dimensional space. (We used starting values in each corner of a square for illustrative purposes.)
+Now we examine the convergence of the chains. The plot below looks at convergence in the two dimensional space. (We deliberately used starting values in each corner of a square for illustrative purposes.) Eventually the chains reach the part of the posterior distribution that has the most mass and mix there.
 
 ```{r echo=FALSE, fig.align='center', fig.width=10, fig.height=5}
 par(mfrow=c(1,2))
@@ -607,7 +616,7 @@ rect(-50, range(metro_hasti[,1,])[1]-4, dim(metro_hasti)[1]/2, range(metro_hasti
      col = rgb(128,128,128, alpha = 50, max = 255), border = NA)
 ```
 
-The figure below illustrates the samples for each parameter using histograms.
+Finally, the figure below illustrates the samples for each parameter using histograms.
 ```{r echo=FALSE, fig.align='center', fig.width=10, fig.height=5}
 par(mfrow=c(1,2))
 warmup <- seq(1,(dim(metro_hasti)[1]/2))
@@ -664,8 +673,8 @@ For each unknown parameter $\theta_j$ we also need a momementum variable $\phi_j
 4. If $u < \alpha$ then $\vec{\theta}_n = \vec{\theta}^*$, else $\vec{\theta}_n = \vec{\theta}_{n-1}$.
 
 
-The code below creates a function that runs the HMC algorithm using the bivariate normal distribution as the proposal distribution $g$. 
-```{r}
+The code below creates a function that runs the HMC algorithm using the bivariate normal distribution as the proposal distribution $g$.
+```{r hmc, include=TRUE}
 # HAMILTONIAN MONTE CARLO
 
 #' A Rejection Sampling algorithm where proposals are generated from Unif(0,1).
@@ -685,7 +694,7 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
   else
     out[1,,] <- init_val
   phi[1,,] <- rmvnorm(chains, c(0,0), M)
-  
+
   gradient <- function(theta) {
     e <- 1e-4
     out <- array(NA, length(theta))
@@ -699,7 +708,7 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
     }
     out
   }
-  
+
   sampler <- function(theta) {
     phi <- c(rmvnorm(1, mean = c(0,0), sigma = M))
     grad <- gradient(theta)
@@ -708,11 +717,11 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
     for (l in 1:L) {
       phi <- phi + 0.5 * epsilon * grad
       theta <- theta + epsilon * solve(M) %*% phi
-      phi <- phi + 0.5 * epsilon * grad 
+      phi <- phi + 0.5 * epsilon * grad
     }
     return(list("theta" = c(theta), "phi" = c(phi)))
   }
-  
+
   accept_reject <- function(theta_star, theta, phi_star, phi) {
     dens_theta_star <- f(theta_star)
     dens_theta <- f(theta)
@@ -721,9 +730,9 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
     alpha <- exp((dens_theta_star + dens_phi_star) - (dens_theta + dens_phi))
     alpha
   }
-  
+
   cat(paste0("['.' = ", iter/10, " iterations]\n"))
-  
+
   for(j in 1:chains) {
     cat(paste0("[ chain ", j, " ]"))
     for(i in 2:iter) {
@@ -740,7 +749,7 @@ hmc <- function(f, iter = 1e3, chains = 4, init_val = NULL, epsilon_init = 0.1, 
         cat(".")
       if(i == iter)
         cat("[ complete ]\n")
-    } 
+    }
   }
   out
 }
@@ -757,7 +766,7 @@ priors <- cbind(rnorm(N, 0, 1), rnorm(N, 0, 1))
 # data
 dat <- array(NA, c(N, 2))
 for(i in 1:N) {
-  dat[i,] <- rmvnorm(1, mean = priors[i,], sigma = covmat) 
+  dat[i,] <- rmvnorm(1, mean = priors[i,], sigma = covmat)
 }
 # posterior distribution
 post_func <- function(theta) {
@@ -774,7 +783,7 @@ y \sim \mathcal{MN}({\vec{\theta}, \Sigma}) \\
 \theta_2 \sim \mathcal{N}(0, 1) \\
 $$
 
-```{r}
+```{r include=TRUE}
 # setup initial conditions
 init_val <- cbind(c(1,1),
                   c(-1,-1),
@@ -800,12 +809,12 @@ The figure below plots the traceplot of both parameters.
 
 ```{r, echo=FALSE, fig.align="center", fig.height=5, fig.width=10}
 par(mfrow=c(1,2))
-plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim),
      ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[1]))
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], col = cols[i], lwd = 2)
 }
-plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim), 
+plot(0, type = "n", xlim = c(1,dim(hmc_sim)[1]), ylim = range(hmc_sim),
      ylab = "Parameter Value", xlab = "Iteration", main = expression("Traceplot for" ~ mu[2]))
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,2,i], col = cols[i], lwd = 2)
@@ -816,7 +825,7 @@ The figure below illustrates the covergence of the chains in two dimensions. A c
 
 ```{r, echo=FALSE, fig.align="center", fig.height=5, fig.width=10}
 # setup the data for the contour plot
-post_func_vectorized <- 
+post_func_vectorized <-
   Vectorize(
   function(x,y) {
   theta <- c(x,y)
@@ -828,14 +837,14 @@ post_func_vectorized <-
 par(mfrow=c(1,2))
 x <- y <- seq(-4,4,0.1)
 z <- outer(x, y, FUN = post_func_vectorized)
-plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]), 
+plot(0, type = "n", xlim = range(hmc_sim[,1,]), ylim = range(hmc_sim[,2,]),
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
 contour(x, y, z, add = TRUE, col = "#808080", lwd = 2)
 for(i in 1:dim(hmc_sim)[3]) {
   lines(hmc_sim[,1,i], hmc_sim[,2,i], col = cols[i], lwd = 2)
 }
 
-plot(0, type = "n", xlim = range(hmc_sim[,1,])/30, ylim = range(hmc_sim[,2,])/30, 
+plot(0, type = "n", xlim = range(hmc_sim[,1,])/30, ylim = range(hmc_sim[,2,])/30,
      ylab = expression(mu[2]), xlab = expression(mu[1]), main = expression("Convergence of" ~ mu[1] ~ "and" ~ mu[2]))
 x <- y <- seq(-0.15,0.15,0.005)
 z <- outer(x, y, FUN = post_func_vectorized)

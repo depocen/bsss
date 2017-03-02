@@ -201,13 +201,13 @@ accept_reject <- function(f, g, support = c(0,1), M = 1, iter = 1e3) {
 
 beta_sample1 <- accept_reject(f = function(x){dbeta(x, 2, 2)},
                              g = function(x, a, b){dunif(x, a, b)},
-                             M = 1, iter = 1e4*4)
+                             M = 1, iter = 1e4)
 beta_sample2 <- accept_reject(f = function(x){dbeta(x, 2, 2)},
                               g = function(x, a, b){dunif(x, a, b)},
-                              M = 2, iter = 1e4*4)
+                              M = 2, iter = 1e4)
 
 par(mfrow=c(1,3))
-hist(rbeta(1e4*4, 2, 2), freq = F, breaks = 50, col = "#808080", border = FALSE, ylim = c(0,5),
+hist(rbeta(1e4, 2, 2), freq = F, breaks = 50, col = "#808080", border = FALSE, ylim = c(0,5),
      main = "Beta(2,2) Histogram", xlab = "x")
 hist(na.omit(beta_sample1$reject), freq = F, breaks = 50, col = rgb(64, 210, 254, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,5),
@@ -215,12 +215,18 @@ hist(na.omit(beta_sample1$reject), freq = F, breaks = 50, col = rgb(64, 210, 254
 hist(na.omit(beta_sample1$accept), freq = F, breaks = 50, col = rgb(230, 61, 149, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,2), add = T)
 abline(h = 1, col = "black", lty = 2)
+legend("topright", c("Accept", "Reject", "M"),
+       col = c(col = rgb(230, 61, 149, alpha = 150, max = 255), col = rgb(64, 210, 254, alpha = 150, max = 255), "black"),
+       lwd = c(NA,NA,1), lty = c(NA,NA,2), pch = c(15,15,NA), pt.cex = 2, cex = 0.8, bty = "n")
 hist(na.omit(beta_sample2$reject), freq = F, breaks = 50, col = rgb(64, 210, 254, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,5),
      main = "Accept Reject for Beta(2,2) with M = 2", xlab = "x")
 hist(na.omit(beta_sample2$accept), freq = F, breaks = 50, col = rgb(230, 61, 149, alpha = 150, max = 255),
      border = FALSE, ylim = c(0,2), add = T)
 abline(h = 2, col = "black", lty = 2)
+legend("topright", c("Accept", "Reject", "M"),
+       col = c(col = rgb(230, 61, 149, alpha = 150, max = 255), col = rgb(64, 210, 254, alpha = 150, max = 255), "black"),
+       lwd = c(NA,NA,1), lty = c(NA,NA,2), pch = c(15,15,NA), pt.cex = 2, cex = 0.8, bty = "n")
 dev.off()
 
 table(is.na(beta_sample1$accept))
