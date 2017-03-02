@@ -24,7 +24,7 @@ This note serves as an overview of some of the algorithms used in Bayesian stati
 
 ## Random Walks
 
-A [random walk](https://en.wikipedia.org/wiki/Random_walk) is a special case of a Markov chain. It does precisely what you think it does; randomly move through some mathematical space. The canonical example is a particle moving in one dimension. With equal probability the particle moves up or down at time $t$ relative to it position at time $t-1$. This behaviour can be represented with a Bernoulli probability mass function. Another example would be to let $\varepsilon ~ \mathcal{N}(0,1)$ and define,
+A [random walk](https://en.wikipedia.org/wiki/Random_walk) is a special case of a Markov chain. It does precisely what you think it does; randomly move through some mathematical space. The canonical example is a particle moving in one dimension. With equal probability the particle moves up or down at time $t$ relative to it position at time $t-1$. This behavior can be represented with a Bernoulli probability mass function. Another example would be to let $\varepsilon ~ \mathcal{N}(0,1)$ and define,
 $$
 X_n = X_{n-1} + \varepsilon
 $$
@@ -72,7 +72,7 @@ lines(dat[1:5e3,1], dat[1:5e3,2], col = "#ff6688")
 
 ## Markov Chains
 
-Consider a sequence of random variables $X_0, X_1, X_2, \ldots$ where $X_n$ denotes the **state** at time $n \geq 0$. If the sequence is a [Markov chain]() then the the probability of $X_n$ depends only on $X_{n-1}$. Thus, we can write the conditional probability as,
+Consider a sequence of random variables $X_0, X_1, X_2, \ldots$ where $X_n$ denotes the **state** at time $n \geq 0$. If the sequence is a [Markov chain](https://en.wikipedia.org/wiki/Markov_chain) then the the probability of $X_n$ depends only on $X_{n-1}$. Thus, we can write the conditional probability as,
 $$
 P(X_{n} = j | X_{n-1} = i)
 $$
@@ -226,7 +226,7 @@ We apply this method below to approximate $\pi$ and in rejection sampling.
 
 ### Estimating $\pi$
 
-Using Monte Carlo methods we can estimate the mathematical constant $\pi$, which is defined as the ratio of the circumference to the diameter of a circle. Consider a unit circle inscribed in a square (i.e. a circle with radius $r=1$). The area of the circle is $\pir^2 = \pi$ and the area of the square is 4, so the ratio of the area of the circle and the square is $\pi/4$. Now all we need to do is construct a Monte Carlo method to estimate this ratio and multiply the result by 4 to get an estimate of $\pi$.
+Using Monte Carlo methods we can estimate the mathematical constant $\pi$, which is defined as the ratio of the circumference to the diameter of a circle. Consider a unit circle inscribed in a square (i.e. a circle with radius $r=1$). The area of the circle is $\pi r^2 = \pi$ and the area of the square is 4, so the ratio of the area of the circle and the square is $\pi/4$. Now all we need to do is construct a Monte Carlo method to estimate this ratio and multiply the result by 4 to get an estimate of $\pi$.
 
 1. Define the domain as $x\in[0,1]$ and the range as $y\in[0,1]$.
 3. Sample x and y with $x,y\sim Unif(0,1)$.
@@ -470,7 +470,7 @@ abline(v = mean(metro), col = "red", lwd =2)
 
 ## Metropolis-Hastings
 
-The **Metropolis-Hastings algorithm** is similar to the Metropolis algorithm, however, we now relax the assumption that the proposal distribution $g$ has to be symmetric. The algorithm proceeds in the same was except that now our accept/reject condition is $u < \frac{f(x^*)}{f(x_n)}\frac{g(x_n|x^*)}{g(x^*|x_n)}$. The component $\frac{g(x_n|x^*)}{g(x^*|x_n)}$ is included in the condition to correct for the asymmetry in the proposal distribution. This can improve efficiency since, in some cases, using an asymmetric proposal distribution can increase the speed of the Markov chain.
+The **Metropolis-Hastings algorithm** is similar to the Metropolis algorithm, however, we now relax the assumption that the proposal distribution $g$ has to be symmetric. The algorithm proceeds in the same way except that now our accept/reject condition is $u < \frac{f(x^*)}{f(x_n)}\frac{g(x_n|x^*)}{g(x^*|x_n)}$. The component $\frac{g(x_n|x^*)}{g(x^*|x_n)}$ is included in the condition to correct for the asymmetry in the proposal distribution. This can improve efficiency since, in some cases, using an asymmetric proposal distribution can increase the speed of the Markov chain.
 
 The code below creates a Metropolis-Hastings function that allows you to sample from a bivariate distribution where the proposal distribution $g$ is the bivariate normal distribution.
 
@@ -535,8 +535,8 @@ metropolis_hastings <- function(f, iter = 1e3, chains = 4, init = NULL, prop_sca
 The code below creates the data and runs the Metropolis-Hastings algorithm. Our posterior distribution that we are interested in sampling from can be stated as,
 $$
 y \sim \mathcal{MN}(\vec{\mu}, \mathbf{\Sigma}) \\
-\vec{\mu}_1 \sim \mathcal{N}(0, 0.1) \\
-\vec{\mu}_2 \sim \mathcal{N}(0, 0.1) \\
+\vec{\mu}_1 \sim \mathcal{N}(0, 3) \\
+\vec{\mu}_2 \sim \mathcal{N}(0, 3) \\
 $$
 
 Where the covariance matrix $\Sigma$ is known and is a $2 \times 2$ identity matrix.
@@ -546,7 +546,7 @@ library(mvtnorm)
 
 # parameters and data
 covmat <- diag(1,2)
-N <- 5
+N <- 15
 priors <- cbind(rnorm(N, 0, 3), rnorm(N, 0, 3))
 dat <- array(NA, c(N, 2))
 for(i in 1:N) {
@@ -563,7 +563,7 @@ init_val <- init_val * 4
 # posterior distribution
 posterior_func <- function(pars) {
   lik <- sum(dmvnorm(dat, pars, sigma = covmat, log = TRUE))
-  prior <- dnorm(pars, 0, 0.1, log = TRUE)
+  prior <- dnorm(pars, 0, 3, log = TRUE)
   lik + sum(prior)
 }
 
@@ -589,7 +589,7 @@ plot(0, type = "n", xlim = range(metro_hasti), ylim = range(metro_hasti),
 for(i in 1:4) {
   lines(metro_hasti[,1,i], metro_hasti[,2,i], col = cols[i], lwd = 2)
 }
-plot(0, type = "n", xlim = c(-0.4,0.4), ylim = c(-0.4,0.4),
+plot(0, type = "n", xlim = c(-2,2), ylim = c(-2,2),
      main = "Chains Mixing in Center Mass of Posterior", xlab = expression(mu[1]), ylab = expression(mu[2]))
 for(i in 1:4) {
   lines(metro_hasti[,1,i], metro_hasti[,2,i], col = cols[i], lwd = 2)
@@ -628,6 +628,8 @@ hist(metro_hasti[-warmup,2,], breaks = 40, col = "darkgrey", border = FALSE, fre
 abline(v = mean(metro_hasti[-warmup,2,]), col = "red", lwd = 2)
 ```
 
+Our marginal posterior distributions look appropriate given the data generating process, and it looks like our chains converged and mixed well.
+
 ### Tuning
 
 The Metropolis and Metropolis-Hasting algorithms are sensitive to tuning. Above we used a fairly inefficient tuning parameter `prop_scale = 0.005` (this is apparent in the large number of accepted proposals). It is inefficient in the sense that it over accepted proposals out in the tails. (In this example we know that the tails are not a particularly interesting part of the distribution since our likelihood is multivariate normal and our priors are normal.) This isn't a huge problem it we run a large number of iterations, but that is not always feasible. Below we rerun the model with a more efficient value for the tuning parameter.
@@ -638,7 +640,7 @@ metro_hasti_tuned <- metropolis_hastings(f = posterior_func,
                                    prop_scale = 0.1)
 ```
 
-If we plot the first 100 iterations, notice that the chains with the inefficient tuning parameter did not even get a chance to mix under the center mass of the distribution. However, with better tuning there is already a lot of mixing taking place. Remember, the whole point of sampling from an unknown distribution is to get to the interesting part of the distribution and explore it.
+If we plot the first 100 iterations, notice that the chains with the inefficient tuning parameter did not even get a chance to mix under the center mass of the distribution. However, with better tuning there is already a lot of mixing taking place. Remember, when sampling from an unknown distribution we want the algorithm to **get to the interesting part of the distribution and explore it**.
 
 ```{r, echo=FALSE, fig.align='center', fig.height=5, fig.width=10}
 par(mfrow=c(1,2))
@@ -656,21 +658,21 @@ for(i in 1:4) {
 
 ## Hamiltonian Monte Carlo
 
-The [Hamiltonion Monte Carlo]() algorithm is a concept borrowed from Physics that does a more efficient job of exploring the target distribution. It does this by supressing the random walk behavior in Metropolis-Hastings. First, we need to define a few of new components.
+The [Hamiltonian Monte Carlo](https://en.wikipedia.org/wiki/Hybrid_Monte_Carlo) algorithm is a concept borrowed from Physics that does a more efficient job of exploring the target distribution. It does this by suppressing the random walk behavior in Metropolis-Hastings. First, we need to introduce some concepts.
 
-In order to do HMC we need the [gradient](https://en.wikipedia.org/wiki/Gradient) of the posterior distribution with respect to the parameters. If we have a function that takes several inputs then the gradient is the vector of first order deriviatives, where each element in the gradient is the derivative of the function with respect to each parameter. Formally, say we have a function that takes $J$ parameters and outputs a scalar value, $f: \mathbb{R}^J \rightarrow \mathbb{R}$. Then the gradient of $f$ is $\triangledown f = \bigg(\frac{df}{d\theta_1},\frac{df}{d\theta_2},\ldots,\frac{df}{d\theta_J}\bigg)$.
+In order to do HMC we need the [gradient](https://en.wikipedia.org/wiki/Gradient) of the posterior distribution with respect to the parameters. If we have a function that takes several inputs then the gradient is the vector of first order partial derivatives. Formally, say we have a function that takes $J$ parameters and outputs a scalar value, $f: \mathbb{R}^J \rightarrow \mathbb{R}$. Then the gradient of $f$ is $\triangledown f = \bigg(\frac{df}{d\theta_1},\frac{df}{d\theta_2},\ldots,\frac{df}{d\theta_J}\bigg)$.
 
-For each unknown parameter $\theta_j$ we also need a momementum variable $\phi_j$. Typically $\vec{\phi}$ has a multivariate normal distribution with mean zero and covariance matrix $M$. Often $M$ is a diagonal matrix so that the elements of $\vec{\phi}$ are independent of each other. Tuning of the algorithm involves multipling $M$ by some scalar quanity $\varepsilon$ that the user can initialize. We say initialize since the algorithm can be setup so that the tuning parameter adapts as the chain explores the target distribution.   
+For each unknown parameter $\theta_j$ we also need a momentum variable $\phi_j$. Typically $\vec{\phi}$ has a multivariate normal distribution with mean zero and mass matrix (i.e. covariance matrix) $M$. Often $M$ is a diagonal matrix so that the elements of $\vec{\phi}$ are independent of each other. Tuning of the algorithm involves multiplying $M$ by some scalar quantity $\varepsilon$ that the user can initialize. We say initialize since the algorithm can be setup so that the tuning parameter adapts itself as the chain explores the target distribution.   
 
 **ALGORITHM** (Hamiltonian Monte Carlo)
 
-1. Repeat (1)-(4) $N$ times (where $N$ is the total number of iterations). Set initial values for $\vec{\theta}$ and the tuning parameter and repeat. Draw $\vec{\phi}$ with $\vec{\phi} \sim \mathcal{MN}(\vec{0}, M)$.
-2. Repeat (a)-(c) $L$ times to complete one leapfrog step.
+1. (Repeat 1-4 $J$ times.) Draw $\vec{\phi}$ with $\vec{\phi} \sim \mathcal{MN}(\vec{0}, M)$.
+2. Repeat a-c $L$ times to complete one leapfrog step.
     a. Perform a half update on the momentum vector $\vec{\phi} \leftarrow \vec{\phi} + \frac{1}{2}\varepsilon\triangledown f(\vec{\theta})$
-    b. $\vec{\theta} \leftarrow \vec{\theta} + \varepsilon M^{-1}\vec{\phi}$
-    c. $\phi \leftarrow \phi + \frac{1}{2}\varepsilon \triangledown f(\vec{\theta})$.
-3. Compute the ratio $\alpha = \frac{f(\vec{\theta}^*|y)p(\vec{\theta}^*)}{f(\vec{\theta}|y)p(\vec{\theta})}$.
-4. If $u < \alpha$ then $\vec{\theta}_n = \vec{\theta}^*$, else $\vec{\theta}_n = \vec{\theta}_{n-1}$.
+    b. Update the parameter vector $\vec{\theta} \leftarrow \vec{\theta} + \varepsilon M^{-1}\vec{\phi}$
+    c. Complete the update of the momentum vector$\phi \leftarrow \phi + \frac{1}{2}\varepsilon \triangledown f(\vec{\theta})$.
+3. Compute the acceptance ratio $\alpha = \frac{f(\vec{\theta^*}|y)p(\vec{\theta^*})}{f(\vec{\theta}|y)p(\vec{\theta})}$.
+4. If $u < \alpha$ then $\vec{\theta}_n = \vec{\theta^*}$, else $\vec{\theta}_n = \vec{\theta}_{n-1}$.
 
 
 The code below creates a function that runs the HMC algorithm using the bivariate normal distribution as the proposal distribution $g$.
@@ -776,7 +778,7 @@ post_func <- function(theta) {
 }
 ```
 
-We are modeling the data as being generated from the bivariate normal distriubtion with known covariance matrix $\Sigma$, with standard normal priors on the means. Formally,
+We are modeling the data as being generated from the bivariate normal distribution with known covariance matrix $\Sigma$ and standard normal priors on the mean parameters. Formally,
 $$
 y \sim \mathcal{MN}({\vec{\theta}, \Sigma}) \\
 \theta_1 \sim \mathcal{N}(0, 1) \\
@@ -821,7 +823,7 @@ for(i in 1:dim(hmc_sim)[3]) {
 }
 ```
 
-The figure below illustrates the covergence of the chains in two dimensions. A contour plot of the actual posterior distribution is overlayed. Notice that all of the mixing is taking place in the center mass of the distribution.
+The figure below illustrates the convergence of the chains in two dimensions. A contour plot of the actual posterior distribution is overlaid. Notice that all of the mixing is taking place in the center mass of the distribution.
 
 ```{r, echo=FALSE, fig.align="center", fig.height=5, fig.width=10}
 # setup the data for the contour plot
