@@ -1,0 +1,248 @@
+---
+title: "A Brief Introduction to RStanARM"
+author: "Imad Ali"
+date: "3/23/2017"
+output:
+  html_document:
+    highlight: pygments
+    theme: spacelab
+  pdf_document:
+    highlight: pygments
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+<!---
+## Linear Regression
+
+``` {r}
+generate_multinorm_data <- function(n, mu, sigma) {
+  if(any((eigen(sigma)$values) < 0))
+    stop("\none or more eigenvalues of 'sigma' are negative")
+  x <- matrix(rnorm(n * length(mu)), ncol = length(mu), nrow = n)
+  sigma_decomp <- svd(sigma)
+  u <- sigma_decomp$u
+  d <- diag(sigma_decomp$d,length(sigma_decomp$d))
+  y <- t(mu + u %*% sqrt(d) %*% t(x))
+  return(y)
+}
+generate_lm_dat <- function(beta, X, sigma = 1) {
+  n <- nrow(X)
+  if (length(beta) - ncol(X) == 1)
+    y <- rnorm(n, X%*%beta[-1], sigma) + beta[1]
+  else
+    y <- rnorm(n, X%*%beta, sigma)
+  out <- data.frame(cbind(y, X))
+  names <- paste0("x", 1:ncol(X))
+  colnames(out) <- c("y", names)
+  return(out)
+}
+N <- 200
+# X <- generate_multinorm_data(N, c(1,1), diag(2))
+X <- cbind(rnorm(N, 1, 1), rnorm(N, 2, 1))
+covmat <- rbind(c(1, 0, 0),
+                c(0, 1, 0.5),
+                c(0, 0.5, 1))
+covmat <- covmat * 0.1
+prior_mu <- c(1,1.5,2)
+# beta <- t(generate_multinorm_data(1, c(0.1,0.5,2.3), covmat))
+beta <- t(mvtnorm::rmvnorm(1, c(0.1,0.5,2.3), covmat))
+dat_lm <- generate_lm_dat(beta, X)
+```
+
+``` {r}
+retro <- rgb(255,102,136, maxColorValue = 256, alpha = 20)
+plot(0, type = "n", main = "Prior Predictive Distribution of Dependent Variable", xlab = "y", ylab = "Density",
+     ylim = c(0,max(density(dat_lm$y)$y)), xlim = range(dat_lm$y))
+# plot(0, type = "n", main = "Prior Predictive Distribution of Dependent Variable", xlab = "y", ylab = "Density",
+#      ylim = c(0,0.4), xlim = range(dat_lm$y)*1.5)
+for (i in 1:200) {
+  # beta_sims <- t(generate_multinorm_data(1, c(0.1,0.5,2.3), covmat  * cbind(c(0.1, 1, 1),c(1, 0.1, 1),c(1, 1, 0.1))))
+  beta_sims <- t(mvtnorm::rmvnorm(1, c(0.1,0.5,2.3), covmat))
+  y_sims <- generate_lm_dat(beta_sims, X)$y
+  lines(density(y_sims), col = retro)
+  # cat("iter", i, ": mean(y_sims) =", round(mean(y_sims),4), "mean(XB) =",
+  #     round(mean(mean(as.matrix(dat_lm[,-1])%*%beta_sims[-1] + beta_sims[1])),4), "\n",
+  #     "         beta_sims =", round(beta_sims,4), "\n")
+}
+lines(density(dat_lm$y), lwd = 2)
+```
+
+```{r}
+fit1 <- stan_lm(y ~ x1 + x2, data = dat_lm, cores = 4,
+                prior_intercept = normal(1,0.1), prior = R2(0.6, what = "mean"),
+                control = list("adapt_delta" = 0.999))
+lm_fit1 <- lm(y ~ x1 + x2, data = dat_lm)
+print(fit1, digits = 2)
+summary(lm_fit1)
+pairs(fit1, pars = c("(Intercept)", "x1", "x2"))
+```
+
+```{r}
+round(
+cbind("lm" = coef(lm_fit1),    # model fit with mle
+      "stan_lm" = coef(fit1),   # model fit with mcmc
+      "beta" = c(beta),            # the parameter realized from the prior distributions
+      "beta_mu" = prior_mu)     # the prior distribution location parameters
+,2)
+```
+
+```{r}
+np1 <- nuts_params(fit1)
+plot(fit1, "trace", divergences = np1)
+pp_check(fit1)
+```
+
+```{r}
+round(vcov(lm_fit1),2)
+```
+### Model Fitting
+
+### Diagnostics
+--->
+## Logistic Regression
+
+``` {r}
+
+inv_logit <- function(x) {
+  return(exp(x)/(1+exp(x)))
+}
+
+generate_multinorm_data <- function(n, mu, sigma) {
+  if(any((eigen(sigma)$values) < 0))
+    stop("\none or more eigenvalues of 'sigma' are negative")
+  x <- matrix(rnorm(n * length(mu)), ncol = length(mu), nrow = n)
+  sigma_decomp <- svd(sigma)
+  u <- sigma_decomp$u
+  d <- diag(sigma_decomp$d,length(sigma_decomp$d))
+  y <- t(mu + u %*% sqrt(d) %*% t(x))
+  return(y)
+}
+
+generate_logistic_data <- function(beta, X, cons = TRUE) {
+  n <- nrow(X)
+  X_orig <- X
+  if (cons) {
+    X <- cbind(rep(1,n),X) 
+  }
+  prob <- inv_logit(X%*%beta)
+  y <- rbinom(n, 1, prob)
+  
+  out <- data.frame(cbind(y,X_orig,prob))
+  names <- paste0("x", 1:ncol(X_orig))
+  colnames(out) <- c("y", names, "prob")
+  
+  return(out)
+}
+
+
+N <- 300
+prior_mu <- c(-0.5, 0.5, 1.5)
+prior_sd <- rep(0.8,length(prior_mu))
+beta <- c(rnorm(1, prior_mu[1], prior_sd[1]),
+          rnorm(1, prior_mu[2], prior_sd[2]),
+          rnorm(1, prior_mu[3], prior_sd[3]))
+X <- generate_multinorm_data(N, beta[-1], matrix(c(1,0.5,0.5,1), ncol = 2))
+dat_glm <- generate_logistic_data(beta, X, cons = TRUE)
+```
+
+```{r}
+table(dat_glm$y)
+```
+
+### Model Fitting
+
+``` {r}
+# fit model using mcmc
+fit1 <- stan_glm(y ~ x1 + x2, data = dat_glm, family = binomial(link = "logit"), cores = 4,
+                 prior_intercept = normal(prior_mu[1], prior_sd[1]), prior = normal(prior_mu[-1], 0.5*prior_sd[-1]))
+```
+
+``` {r}
+cbind("glm" = coef(glm_fit1),   # model fit with mle
+      "stan_glm" = coef(fit1),  # model fit with mcmc
+      "beta" = beta,            # the parameter realized from the prior distributions
+      "beta_mu" = prior_mu)     # the prior distribution location parameters
+```
+
+```{r}
+vcov(fit1)
+```
+
+### Diagnostics
+
+We can roughly break down diagnostics into two stages:
+
+1. Checking if the sampler explored the space appropriately (i.e. is our model well identified)
+2. Checking the predictive ability of the model (i.e. is our model appropriate given the data)
+
+First lets look at the summary output available from the stanreg object.
+
+```{r include=TRUE}
+summary(fit1, digits = 2)
+```
+
+**Model Info** provides some high-level information about the type of model you have fit, algorithm used, size of the posterior sample (which equals chains * (iter - warmup)), etc.
+
+**Estimates** provides statistics on the posterior samples for the parameters. Here we have information on,
+
+* The mean and standard deviation of the marginal distribution of each parameter
+* A set of quantile values. For example, 50% of the distribution for the (Intercept) parameter lies in the interval [-0.72,-0.37].
+* The mean of the posterior predictive distribution (mean_PPD), which is the mean of the predictions made using the estimated parameters.
+* The log-posterior is the logarithm of the likelihood times the prior up to some normalizing constant. 
+
+**Diagnostics** provides information about the sampler's performance.
+
+* Rhat is a measure of convergence among chains. It is the ratio of the average variance of the draws within each chain to the variance of the pooled draws across chains. If Rhat is 1 then the chains are in equilibirium (i.e. have converged) You should be concerned if Rhat is greater than 1. Sometimes this can be rectified by increasing the number of iterations. Other times it might be an issue with the way your model is identified.
+* n_eff is rough measure of effective sample size. 
+* mcse is "Monte Carlo Standard Error" a measure of inaccuracy of Monte Carlo samples.
+
+Below is one of the more important diagnostic plots. It is a **traceplot** of each parameter. Notice how. for each parameter, the chains mix well. This is also reflected in the Rhat values of one mentioned above.
+
+```{r, include=TRUE, fig.align='center', fig.height=3, fig.width=9}
+library(bayesplot)
+color_scheme_set(colorRampPalette(c("#535294","#ec5f9f"))(6))
+plot(fit1, "trace")
+```
+
+Below is a graph of the **autocorrelation function** for the chain of each parameter. Notice how, as per the definition of Markov Chains, the past parameter values have no influence on future parameter values.
+
+```{r, include=TRUE, fig.align='center', fig.height=9, fig.width=9}
+plot(fit1, "acf")
+```
+
+Our outcome variable is binary so we can look at a contingency table to determine how well our model predcicts the outcome. Ideally we want the off diagonals of the 2-by-2 table to be close to zero (i.e. predicting few false positives and false negatives).
+
+``` {r, include=TRUE}
+# posterior predictive check
+yrep_stan <- round(colMeans(posterior_predict(fit1)))
+table("stan_glm" = yrep_stan, "y_true" = dat_glm$y)
+```
+
+The tables generated above compare posterior predictions with true values. We can also see how the predictions fair when using new data. This is presented in the table below.
+
+```{r, include=TRUE}
+# how do the predictions compare with new data realized from the prior predicitive distribution
+new_beta <- c(rnorm(1, prior_mu[1], prior_sd[1]),
+              rnorm(1, prior_mu[2], prior_sd[2]),
+              rnorm(1, prior_mu[3], prior_sd[3]))
+new_dat <- generate_logistic_data(new_beta, X, cons = TRUE)
+yrep_new_stan <- round(colMeans(posterior_predict(fit1, newdata = new_dat)))
+table("stan_glm" = y_new_stan1, "y_true" = new_dat$y)
+```
+
+
+Posterior predictive Checks
+
+```{r, include=TRUE}
+# pp_check(fit1) + ggtitle("Posterior Predictions")
+# plot(fit1) + ggtitle("Marginal Posterior Parameter Estimates")
+# plot(fit1, "hist") + ggtitle("Marginal Posterior Parameter Distributions")
+# plot(fit1, "dens_overlay") + ggtitle("Marginal Posterior Parameter Distributions")
+# plot(fit1, "scatter", pars = c("x1","x2")) + ggtitle("Correlation of Paramters")
+```
+
