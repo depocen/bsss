@@ -6,6 +6,7 @@ output:
   html_document:
     highlight: pygments
     theme: spacelab
+    toc: true
   pdf_document:
     highlight: pygments
     toc: yes
@@ -13,105 +14,51 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(rstanarm)
+library(bayesplot)
+library(loo)
+library(ggplot2)
 ```
 
 ## Introduction
-<!---
-## Linear Regression
+
+This is a brief example of how to use the [rstanarm](https://cran.r-project.org/web/packages/rstanarm/) package in the context of [logistic regression](https://en.wikipedia.org/wiki/Logistic_regression). See the rstanarm documentation (reference manual and vigenettes) for the most up to date material. We will also use the [bayesplot](https://cran.r-project.org/web/packages/bayesplot/) package that provides additional plotting functionality that users can apply to rstan/rstanarm objects, and the [loo](cran.r-project.org/web/packages/loo/) package that provides a way to perform model selection.
+
+Although we will focus on the `stan_glm` function to fit models it is useful to be aware of the other models that can be fit using rstanarm. Below we list the function and a very brief "story" about the data which identifies why you would use that particular function to model the data.
+
+* `stan_lm`
+    * $y \in \mathbb{R}$.
+    * Useful for modeling a continuous outcome that is linear in terms of parmeters. 
+* `stan_glm`  
+    * $y \in \{0, n\}$ where $n \in \mathbb{N}$.
+    * Useful for modeling bernoulli trials (`family=binomial(link = "logit")`).
+    * Useful for modeling count data (`family="poission"` or `family="neg_binomial_2`).
+* `stan_glmer`
+    * $y$ can be continuous or discrete.
+    * Useful for modeling hierarchical structure.
+* `stan_polr`
+    * $y \in \{1, J\}$ where $J \in \mathbb{N}$.
+    * Useful for mdoeling ordinal outcomes.
+* `stan_betareg`
+    * $y \in (0,1)$.
+    * Useful for modeling rates/proportions/ratings.
+
+## Data Generation Process
+
+Below we generate data to be used in logistic regression. The identifying feature of data that can be fit using logistic regression is that the outcome variable is binary.
 
 ``` {r}
-generate_multinorm_data <- function(n, mu, sigma) {
-  if(any((eigen(sigma)$values) < 0))
-    stop("\none or more eigenvalues of 'sigma' are negative")
-  x <- matrix(rnorm(n * length(mu)), ncol = length(mu), nrow = n)
-  sigma_decomp <- svd(sigma)
-  u <- sigma_decomp$u
-  d <- diag(sigma_decomp$d,length(sigma_decomp$d))
-  y <- t(mu + u %*% sqrt(d) %*% t(x))
-  return(y)
-}
-generate_lm_dat <- function(beta, X, sigma = 1) {
-  n <- nrow(X)
-  if (length(beta) - ncol(X) == 1)
-    y <- rnorm(n, X%*%beta[-1], sigma) + beta[1]
-  else
-    y <- rnorm(n, X%*%beta, sigma)
-  out <- data.frame(cbind(y, X))
-  names <- paste0("x", 1:ncol(X))
-  colnames(out) <- c("y", names)
-  return(out)
-}
-N <- 200
-# X <- generate_multinorm_data(N, c(1,1), diag(2))
-X <- cbind(rnorm(N, 1, 1), rnorm(N, 2, 1))
-covmat <- rbind(c(1, 0, 0),
-                c(0, 1, 0.5),
-                c(0, 0.5, 1))
-covmat <- covmat * 0.1
-prior_mu <- c(1,1.5,2)
-# beta <- t(generate_multinorm_data(1, c(0.1,0.5,2.3), covmat))
-beta <- t(mvtnorm::rmvnorm(1, c(0.1,0.5,2.3), covmat))
-dat_lm <- generate_lm_dat(beta, X)
-```
-
-``` {r}
-retro <- rgb(255,102,136, maxColorValue = 256, alpha = 20)
-plot(0, type = "n", main = "Prior Predictive Distribution of Dependent Variable", xlab = "y", ylab = "Density",
-     ylim = c(0,max(density(dat_lm$y)$y)), xlim = range(dat_lm$y))
-# plot(0, type = "n", main = "Prior Predictive Distribution of Dependent Variable", xlab = "y", ylab = "Density",
-#      ylim = c(0,0.4), xlim = range(dat_lm$y)*1.5)
-for (i in 1:200) {
-  # beta_sims <- t(generate_multinorm_data(1, c(0.1,0.5,2.3), covmat  * cbind(c(0.1, 1, 1),c(1, 0.1, 1),c(1, 1, 0.1))))
-  beta_sims <- t(mvtnorm::rmvnorm(1, c(0.1,0.5,2.3), covmat))
-  y_sims <- generate_lm_dat(beta_sims, X)$y
-  lines(density(y_sims), col = retro)
-  # cat("iter", i, ": mean(y_sims) =", round(mean(y_sims),4), "mean(XB) =",
-  #     round(mean(mean(as.matrix(dat_lm[,-1])%*%beta_sims[-1] + beta_sims[1])),4), "\n",
-  #     "         beta_sims =", round(beta_sims,4), "\n")
-}
-lines(density(dat_lm$y), lwd = 2)
-```
-
-```{r}
-fit1 <- stan_lm(y ~ x1 + x2, data = dat_lm, cores = 4,
-                prior_intercept = normal(1,0.1), prior = R2(0.6, what = "mean"),
-                control = list("adapt_delta" = 0.999))
-lm_fit1 <- lm(y ~ x1 + x2, data = dat_lm)
-print(fit1, digits = 2)
-summary(lm_fit1)
-pairs(fit1, pars = c("(Intercept)", "x1", "x2"))
-```
-
-```{r}
-round(
-cbind("lm" = coef(lm_fit1),    # model fit with mle
-      "stan_lm" = coef(fit1),   # model fit with mcmc
-      "beta" = c(beta),            # the parameter realized from the prior distributions
-      "beta_mu" = prior_mu)     # the prior distribution location parameters
-,2)
-```
-
-```{r}
-np1 <- nuts_params(fit1)
-plot(fit1, "trace", divergences = np1)
-pp_check(fit1)
-```
-
-```{r}
-round(vcov(lm_fit1),2)
-```
-### Model Fitting
-
-### Diagnostics
---->
-## Logistic Regression
-
-``` {r}
-
+# the inverse logit function
+#' @param x A number fro the real line.
+#' @return A probability.
 inv_logit <- function(x) {
   return(exp(x)/(1+exp(x)))
 }
-
+# (not necessary) function to generate multinormal random number generation for correlated predictors
+#' @param n An integer value indicating the sample size
+#' @param mu A vector of means of length K
+#' @param sigma A K-by-K covariance matrix
+#' @return A N-by-K matrix of multivariate normal random variables.
 generate_multinorm_data <- function(n, mu, sigma) {
   if(any((eigen(sigma)$values) < 0))
     stop("\none or more eigenvalues of 'sigma' are negative")
@@ -122,7 +69,12 @@ generate_multinorm_data <- function(n, mu, sigma) {
   y <- t(mu + u %*% sqrt(d) %*% t(x))
   return(y)
 }
-
+# function to generate logistic data
+#' @param beta A vector of parameter values.
+#' @param X A matrix of covariates.
+#' @param const Indicate whether a constant should be included in the
+#'              data generation process (defaults to TRUE).
+#' @return A vector of binary data.
 generate_logistic_data <- function(beta, X, cons = TRUE) {
   n <- nrow(X)
   X_orig <- X
@@ -138,8 +90,7 @@ generate_logistic_data <- function(beta, X, cons = TRUE) {
   
   return(out)
 }
-
-
+# generate data
 N <- 300
 prior_mu <- c(-0.5, 0.5, 1.5)
 prior_sd <- rep(0.8,length(prior_mu))
@@ -151,71 +102,100 @@ dat_glm <- generate_logistic_data(beta, X, cons = TRUE)
 ```
 
 ```{r}
+# summarize dependent variable
 table(dat_glm$y)
 ```
 
-### Model Fitting
+Our model is defined as follows,
+
+$$
+y \sim Bin(1, \mathbf{p}) \\
+\mbox{logit}(\mathbf{p}) = \mathbf{X}\boldsymbol{\beta} \\
+\beta_0 \sim \mathcal{N}(-0.5, 0.5) \\
+\beta_1 \sim \mathcal{N}(0.5,0.25) \\
+\beta_2 \sim \mathcal{N}(1.0,0.25)
+$$
+
+Where $\mbox{logit}(p) = \log\bigg(\frac{p}{1-p}\bigg)$. Note that the [logit](https://en.wikipedia.org/wiki/Logit) function $\log\bigg(\frac{p}{1-p}\bigg)$ maps from the closed unit interval $[0,1]$ to the real line $\mathbb{R}$. So we can use the inverse of the logit function to map our linear predictor $\mathbf{X}\boldsymbol{\beta}$ to the closed unit interval and then characterize these values as probabilities which can be passed into the [binomial distribution](https://en.wikipedia.org/wiki/Binomial_distribution) with size $n=1$.
+
+## Model Fitting
 
 ``` {r}
+library(rstanarm)
 # fit model using mcmc
 fit1 <- stan_glm(y ~ x1 + x2, data = dat_glm, family = binomial(link = "logit"), cores = 4,
                  prior_intercept = normal(prior_mu[1], prior_sd[1]), prior = normal(prior_mu[-1], 0.5*prior_sd[-1]))
 ```
 
 ``` {r}
-cbind("glm" = coef(glm_fit1),   # model fit with mle
-      "stan_glm" = coef(fit1),  # model fit with mcmc
+cbind("stan_glm" = coef(fit1),  # model fit with mcmc
       "beta" = beta,            # the parameter realized from the prior distributions
       "beta_mu" = prior_mu)     # the prior distribution location parameters
 ```
 
+We can take a look at the priors actually used in the model with the `prior_summary()` function.
+
 ```{r}
-vcov(fit1)
+prior_summary(fit1)
 ```
 
-### Diagnostics
+## Diagnostics
 
-We can roughly break down diagnostics into two stages:
-
-1. Checking if the sampler explored the space appropriately (i.e. is our model well identified)
-2. Checking the predictive ability of the model (i.e. is our model appropriate given the data)
-
-First lets look at the summary output available from the stanreg object.
+Diagnostics refers to ensuring that the sampler is performing appropriately. First lets look at the summary output available from the stanreg object.
 
 ```{r include=TRUE}
 summary(fit1, digits = 2)
 ```
 
-**Model Info** provides some high-level information about the type of model you have fit, algorithm used, size of the posterior sample (which equals chains * (iter - warmup)), etc.
+**Model Info** provides some high-level information about the type of model you have fit, algorithm used, size of the posterior sample (which equals `chains` * (`iter` - `warmup`)), etc.
 
 **Estimates** provides statistics on the posterior samples for the parameters. Here we have information on,
 
-* The mean and standard deviation of the marginal distribution of each parameter
-* A set of quantile values. For example, 50% of the distribution for the (Intercept) parameter lies in the interval [-0.72,-0.37].
-* The mean of the posterior predictive distribution (mean_PPD), which is the mean of the predictions made using the estimated parameters.
-* The log-posterior is the logarithm of the likelihood times the prior up to some normalizing constant. 
+* The **mean** and **standard deviation** of the marginal posterior distribution of each parameter.
+* A set of **quantiles**. For example, 50% of the distribution for the (Intercept) parameter lies in the interval [-0.72,-0.37].
+* The **mean of the posterior predictive distribution** (`mean_PPD`), which is the mean of the predictions made using the estimated parameters.
+* The **log-posterior** is the logarithm of the likelihood times the prior up to some normalizing constant. 
 
 **Diagnostics** provides information about the sampler's performance.
 
-* Rhat is a measure of convergence among chains. It is the ratio of the average variance of the draws within each chain to the variance of the pooled draws across chains. If Rhat is 1 then the chains are in equilibirium (i.e. have converged) You should be concerned if Rhat is greater than 1. Sometimes this can be rectified by increasing the number of iterations. Other times it might be an issue with the way your model is identified.
-* n_eff is rough measure of effective sample size. 
-* mcse is "Monte Carlo Standard Error" a measure of inaccuracy of Monte Carlo samples.
+* **Rhat** is a measure of convergence among chains. It is the ratio of the average variance of the draws within each chain to the variance of the pooled draws across chains. If Rhat is 1 then the chains are in equilibirium (i.e. the chains have converged). You should be concerned if Rhat is greater than 1. Sometimes this can be rectified by increasing the number of iterations. Other times it might be an issue with the way your model is identified.
+* **n_eff** is a rough measure of effective sample size. 
+* **mcse** is the "Monte Carlo Standard Error" a measure of inaccuracy of Monte Carlo samples.
 
-Below is one of the more important diagnostic plots. It is a **traceplot** of each parameter. Notice how. for each parameter, the chains mix well. This is also reflected in the Rhat values of one mentioned above.
+Below is one of the more important diagnostic plots. It is a **traceplot** of each parameter. Notice how, for each parameter, the chains mix well. This is also reflected in the Rhat values equalling one as mentioned above.
 
 ```{r, include=TRUE, fig.align='center', fig.height=3, fig.width=9}
 library(bayesplot)
-color_scheme_set(colorRampPalette(c("#535294","#ec5f9f"))(6))
-plot(fit1, "trace")
+library(ggplot2)
+color_scheme_set("mix-blue-pink")
+plot(fit1, plotfun = "trace") + ggtitle("Traceplots")
 ```
 
-Below is a graph of the **autocorrelation function** for the chain of each parameter. Notice how, as per the definition of Markov Chains, the past parameter values have no influence on future parameter values.
+For illustrative purposes we fit an inappropriately specified model below and present the traceplot. 
+
+```{r, include=TRUE, fig.align='center', fig.height=3, fig.width=9}
+dat_glm$x3 <- rnorm(nrow(dat_glm), -5, 0.01)
+fit2 <- stan_glm(y ~ I(x3^3) + x3:x2 - 1, data = dat_glm, family = binomial(link = "logit"), cores = 4, prior = normal(0, 10), iter = 100)
+plot(fit2, plotfun = "trace") + ggtitle("Traceplots")
+```
+
+Notice how there is pretty much no convergence among the chains. A lot of time, especially for complicated models, convergence can be achived by increasing the number of iterations. However, in some cases it may signify that you have a poorly identified model.
+
+```{r, include=TRUE}
+summary(fit2)
+```
+
+Looking at the summary output notice that we also have high Rhat values and extremely low effective sample sizes for each parameter.
+
+Below is a graph of the **autocorrelation function** for the chain of each parameter. Notice how, as per the definition of Markov Chains, the past parameter values have no influence on future parameter values. Autocorrelation values close to zero ensure that each value obtained along the chain is random. 
 
 ```{r, include=TRUE, fig.align='center', fig.height=9, fig.width=9}
-plot(fit1, "acf")
+plot(fit1, plotfun = "acf") + ggtitle("Autocorrelation Plots")
 ```
 
-Our outcome variable is binary so we can look at a contingency table to determine how well our model predcicts the outcome. Ideally we want the off diagonals of the 2-by-2 table to be close to zero (i.e. predicting few false positives and false negatives).
+## Posterior Predictive Checks
+
+Our outcome variable is binary so we can look at a contingency table to determine how well our model predicts the outcome. Ideally we want the off diagonals of the 2-by-2 table to be as close to zero as possible (i.e. predicting few false positives and false negatives).
 
 ``` {r, include=TRUE}
 # posterior predictive check
@@ -223,7 +203,7 @@ yrep_stan <- round(colMeans(posterior_predict(fit1)))
 table("stan_glm" = yrep_stan, "y_true" = dat_glm$y)
 ```
 
-The tables generated above compare posterior predictions with true values. We can also see how the predictions fair when using new data. This is presented in the table below.
+The tables generated above compare posterior predictions of the data used to fit the model with the true outcome. We can also see how the predictions fair when using new data. This is presented in the table below.
 
 ```{r, include=TRUE}
 # how do the predictions compare with new data realized from the prior predicitive distribution
@@ -232,17 +212,65 @@ new_beta <- c(rnorm(1, prior_mu[1], prior_sd[1]),
               rnorm(1, prior_mu[3], prior_sd[3]))
 new_dat <- generate_logistic_data(new_beta, X, cons = TRUE)
 yrep_new_stan <- round(colMeans(posterior_predict(fit1, newdata = new_dat)))
-table("stan_glm" = y_new_stan1, "y_true" = new_dat$y)
+table("stan_glm" = yrep_new_stan, "y_true" = new_dat$y)
 ```
 
+With the posterior predictive check function `pp_check()` we can look at how well predictions from the posterior distribution match the true outcome variable that was used to fit the data. Notice that the inappropriate model produces poor posterior predictions. (Here we also use the `bayesplot_grid()` function to combine several plots.)
 
-Posterior predictive Checks
+```{r, include=TRUE, fig.align='center', fig.height=4, fig.width=9}
+bayesplot_grid(
+  pp_check(fit1) + ggtitle("Posterior Predictions (Correct Model)"),
+  pp_check(fit2) + ggtitle("Posterior Predictions (Inappropriate Model)"),
+  grid_args = list(ncol = 2)
+)
+```
+
+We can use the (generic) `plot()` function with various assignments to the `plotfun` argument to create various posterior plots.
+
+The default argument (`plotfun = "intervals"`) plots point estimates for each parameter along with credibility intervals. In this case we are plotting the 50% uncertainty interval (thick horizontal lines) and the 90% uncertainty interval (thin horizontal lines). In terms of interpretation, the 50% uncertainty interval identifies where 50% of the marginal distribution lies for each parameter. The `plotfun="areas"` argument plots the posterior distribution of each parameter with the uncertainty intervals shaded as areas below the cuve.
+
+```{r, include=TRUE, fig.align='center', fig.height=4, fig.width=9}
+bayesplot_grid(
+  plot(fit1, plotfun = "intervals", prob = 0.5, prob_outer = 0.9, point_est = "median") + ggtitle("Marginal Posterior Parameter Estimates"),
+  plot(fit1, plotfun = "areas", prob = 0.5, prob_outer = 0.9, point_est = "median") + ggtitle("Marginal Posterior Parameter Estimates"),
+  grid_args = list(ncol = 2)
+)
+```
+
+The `plotfun="hist"` and `plotfun="dens_overlay"` options plot the histograms for each parameter (pooled across chains) and the empirical density of each parameter, respectively.
+
+```{r, include=TRUE, fig.align='center', fig.height=6, fig.width=9}
+bayesplot_grid(
+  plot(fit1, plotfun = "hist") + ggtitle("Marginal Posterior Parameter Distributions"),
+  plot(fit1, plotfun = "dens_overlay") + ggtitle("Marginal Posterior Parameter Distributions"), 
+  grid_args = list(nrow = 2)
+)
+```
+
+We can use the `plotfun="scatter"` option to examine the correlation between the parameters. 
+
+```{r, include=TRUE, fig.align='center', fig.height=5, fig.width=5}
+plot(fit1, plotfun = "scatter", pars = c("x1","x2")) + ggtitle("Correlation of Parameters")
+```
+
+## Comparing Models
+
+We can compare model performance using the [loo](cran.r-project.org/web/packages/loo/) package. Recall that we have fit two models. The appropriately specified model is `fit1` and the inappropriately specified model is `fit2`. Using the `loo()` function we can evaluate the **loo information criterion** (LOOIC).
 
 ```{r, include=TRUE}
-# pp_check(fit1) + ggtitle("Posterior Predictions")
-# plot(fit1) + ggtitle("Marginal Posterior Parameter Estimates")
-# plot(fit1, "hist") + ggtitle("Marginal Posterior Parameter Distributions")
-# plot(fit1, "dens_overlay") + ggtitle("Marginal Posterior Parameter Distributions")
-# plot(fit1, "scatter", pars = c("x1","x2")) + ggtitle("Correlation of Paramters")
+library(loo)
+loo1 <- loo(fit1)
+loo2 <- loo(fit2)
+loo1
+loo2
 ```
 
+Recall that [information criterion](https://en.wikipedia.org/wiki/Information_criterion) (e.g. AIC) estimates the information lost when using the model to define the data generation process. Since we know that `fit1` is the appropriate model we expect that the LOOIC for `fit1` should be lower than the LOOIC for `fit2`. (Note that LOOIC and ELPD explain the same thing since $\mbox{LOOIC} = -2 \cdot \mbox{ELPD}$.)
+
+We can use the `compare()` function to create a table that compares various statisics generated by the loo package for several models.
+
+```{r, include=TRUE}
+compare(loo1, loo2)
+```
+
+The difference in the expected predictive accuracy (ELPD) is negative, indicating that the that the expected preditive accuracy for the first model is higher.
