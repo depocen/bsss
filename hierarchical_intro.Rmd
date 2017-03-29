@@ -1,0 +1,275 @@
+---
+title: "Basic Hierarchical Models in RStanARM"
+author: "Imad Ali"
+date: "3/23/2017"
+output:
+  html_document:
+    highlight: pygments
+    theme: spacelab
+    toc: true
+  pdf_document:
+    highlight: pygments
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rstanarm)
+library(bayesplot)
+library(loo)
+library(ggplot2)
+```
+
+## Introduction
+
+This note is a brief introduction to the `stan_glmer()` function in [rstanarm](https://cran.r-project.org/web/packages/rstanarm/) which allows you to fit Bayesian hierarchical models. It is a good idea to use a hierarchical model if you believe that there is some sort of nested group structure in your data. For example, let $\mathbf{y}$ and $\mathbf{X}$ refer to the pooled outcome and predictor of your model, respectively. Now suppose that you can identify $J$ groups within your model so that $\{\mathbf{y}_j, \mathbf{X}_j\}$ refers to the data associated with the $j$th group. You have several options in terms of modeling, and we will discuss them below, after simulating the data.
+
+## Simulating data
+
+Below we simulate the data that will be used in the examples. For simplicity we consider only three groups (i.e. $J = 3$) and one predictor.
+
+```{r, include=TRUE}
+# inverse logit function
+invlogit <- function(x) {
+  return(exp(x)/(1+exp(x)))
+}
+# coefficients generated from prior distributions
+b10 <- rnorm(1,0,1)  # group 1 intercept
+b11 <- rnorm(1,1,1)  # group 1 slope
+
+b20 <- rnorm(1,0,1)  # group 2 intercept
+b21 <- rnorm(1,1,1)  # group 2 slope
+
+b30 <- rnorm(1,0,1)  # group 2 intercept
+b31 <- rnorm(1,1,1)  # group 2 slope
+# for ease of comparison post-estimation
+parameters <- rbind("(Intercept)" = c(b10, b20, b30),
+                    "x1" = c(b11, b21, b31))
+colnames(parameters) <- c("model1", "model2", "model3")
+# generate data
+n <- 900
+X <- data.frame(matrix(c(c(rep(1,n/3),rep(2,n/3),rep(3,n/3)),rnorm(n,0,1)),ncol = 2))
+names(X) <- c("group","x1")
+y1 <- invlogit(b10+b11*X[which(X$group==1),2])
+y2 <- invlogit(b20+b21*X[which(X$group==2),2])
+y3 <- invlogit(b30+b31*X[which(X$group==3),2])
+y <- c(y1,y2,y3)
+dat <- data.frame(cbind(rbinom(n,1,y),X))
+names(dat)[1] <- "y"
+head(dat)
+```
+
+## Complete Pooling and No Pooling
+
+If we **completely pool** the data then we are not taking into account the different groups. So we are modeling,
+$$
+\mathbf{y} \sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_0 + \mathbf{x}\beta])
+$$
+
+The problem here is that we are *not accounting for group-specific variability*. (However, if there is no identifiable group structure then this may be an appropriate model.)
+
+If there is **no pooling** of the data then we are modeling each group in separately. This means that we will have $J$ separate regression equations,
+$$
+\begin{aligned}
+\mathbf{y}_1 &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_1} + \mathbf{x}_1\beta_1]) \\
+\mathbf{y}_2 &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}_2\beta_2]) \\
+&\vdots \\
+\mathbf{y}_J &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}_J\beta_J])
+\end{aligned}
+$$
+
+The problem here is that we are *not allowing the information used in one group to explain the model of another group*.
+
+Using the data generated above we can estimate these two models using `stan_glm()`. The completely pooled model would be,
+```{r, include=TRUE}
+fit1 <- stan_glm(y ~ x1, data = dat, family = binomial(link = "logit"),
+                 cores = 4, iter = 500)
+coef(fit1)
+```
+
+The model (or models) with no pooling would be,
+```{r, include=TRUE}
+fit2_1 <- stan_glm(y ~ x1, data = dat, family = binomial(link = "logit"),
+                   subset = group == 1, cores = 4, iter = 500)
+fit2_2 <- stan_glm(y ~ x1, data = dat, family = binomial(link = "logit"),
+                   subset = group == 2, cores = 4, iter = 500)
+fit2_3 <- stan_glm(y ~ x1, data = dat, family = binomial(link = "logit"),
+                   subset = group == 3, cores = 4, iter = 500)
+# compare parameter estimates
+cbind("model1" = coef(fit2_1),
+      "model2" = coef(fit2_2),
+      "model3" = coef(fit2_3))
+parameters
+```
+
+## Hierarchical Models
+
+Bayesian hierarchical models provide an intermediate solution to the two extremes above. Most importantly, *these hierarchical models allow you to model group specific behavior while allowing interactions to exist across the groups*.
+
+First a quick summary of the formula syntax for `stan_glmer` models:
+
+* Recall that an intercept is included in the model by default so including `-1` anywhere in the `formula` will drop the intercept.
+* The formula will consist of the standard expression you are familiar with in `stan_glm` (e.g. `y ~ x1 + x2 ...`), but now we have the option to nest observations. We denote a nested linear predictor within parentheses and a vertical bar: `(|)`. The formula for the linear predictor will be to the left of the vertical bar and the group structure will be identified to the right of the vertical bar.
+* Consider the following formula: `y ~ x1 + (x1 - 1| group)`
+    1. `x1` says to model an overall intercept and a slope parameter for the variable `x1`
+    2. `(x1 - 1| group)` says that within each group model a slope parameter that feeds into the overall slope paremeter in (1).
+
+### Varying Intercept
+
+Here we want the intercept for each group to vary but the slopes will remain constant across the groups. Our model might look like,
+$$
+\begin{aligned}
+\mathbf{y}_1 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0_1} + \mathbf{x}\beta]\bigg) \\
+\mathbf{y}_2 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}\beta]\bigg) \\
+&\vdots \\
+\mathbf{y}_J &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}\beta]\bigg) \\
+\beta &\sim \mathcal{N}(0, 2.5) \\
+\boldsymbol{\beta_{0}} &\sim \mathcal{N}(\mu_0, 1) \\
+\mu_0 &\sim \mathcal{N}(0, 10)
+\end{aligned}
+$$
+
+where $\beta_{0j}$ refers to the intercept of the $j$th group and $\mu_0$ is the overall intercept.
+
+We can fit the model using `stan_glmer()` as follows,
+
+```{r, include=TRUE}
+fit3 <- stan_glmer(y ~ x1 + (1 | group), data = dat, family = binomial(link = "logit"),
+                   cores = 4, iter = 500)
+summary(fit3)
+```
+
+We should take a look at the traceplots to confirm that our chains have mixed well.
+
+```{r, include=TRUE, fig.align='center', fig.height=6, fig.width=9}
+plot(fit3, plotfun = "trace")
+```
+
+We can have a look at the group-specific deviations (`ranef()`) from the overall parameter values (`fixef()`).
+```{r, include=TRUE}
+ranef(fit3)
+fixef(fit3)
+```
+
+We can also look at the group-specific parameters (`coef()`)
+```{r, include=TRUE}
+coef(fit3)
+```
+
+Note that `coef()` is the group-wise sum of `ranef()` and `fixef()`
+```{r, include=TRUE}
+ranef(fit3)$group["(Intercept)"] + fixef(fit3)["(Intercept)"]
+```
+
+### Varying Slope
+
+Here we want the slope to vary for each group while keeping the group-specific intercepts constant. Our model might look like,
+$$
+\begin{aligned}
+\mathbf{y}_1 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0} + \mathbf{x}_{1}\beta_{1}]\bigg) \\
+\mathbf{y}_2 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0} + \mathbf{x}_{2}\beta_{2}]\bigg) \\
+&\vdots \\
+\mathbf{y}_J &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0} + \mathbf{x}_{J}\beta_{J}]\bigg) \\
+\beta_0 &\sim \mathcal{N}(0,10) \\
+\boldsymbol{\beta} &\sim \mathcal{N}(\mu, 1) \\
+\mu &\sim \mathcal{N}(0, 2.5)
+\end{aligned}
+$$
+
+where $\mu$ is the overall slope parameter.
+
+We can fit the model using `stan_glmer()` as follows,
+
+```{r, include=TRUE}
+fit4 <- stan_glmer(y ~ x1 + (x1 - 1 | group), data = dat, family = binomial(link = "logit"),
+                   cores = 4, iter = 500)
+summary(fit4)
+```
+
+Examine the traceplots.
+
+```{r, include=TRUE, fig.align='center', fig.height=6, fig.width=9}
+plot(fit4, plotfun = "trace")
+```
+
+Have a look at the overall and group-specific parameters
+
+```{r, include=TRUE}
+fixef(fit4)
+coef(fit4)
+```
+
+### Varying Intercept and Slope
+
+Here we want the intercept *and* the slope parameters to vary among groups, so our model might look like,
+$$
+\begin{aligned}
+\mathbf{y}_1 &\sim \mbox{Bin} \bigg( 1\ , \mbox{logit}^{-1}[\beta_{0_1} + \mathbf{x}_{1}\beta_{1}] \bigg) \\
+\mathbf{y}_2 &\sim \mbox{Bin} \bigg( 1\ , \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}_{2}\beta_{2}] \bigg) \\
+&\vdots\\
+\mathbf{y}_J &\sim \mbox{Bin} \bigg( 1\ , \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}_{J}\beta_{J}] \bigg) \\
+\boldsymbol{\beta_{0}} &\sim \mathcal{N}(\mu_0,1) \\
+\boldsymbol{\beta} &\sim \mathcal{N}(\mu,1) \\
+\mu_0 &\sim \mathcal{N}(0,10) \\
+\mu &\sim \mathcal{N}(10,2.5) \\
+\end{aligned}
+$$
+
+We can fit the model using `stan_glmer()` as follows,
+
+```{r, include=TRUE}
+fit5 <- stan_glmer(y ~ x1 + (x1 | group), data = dat, family = binomial(link = "logit"),
+                   cores = 4, iter = 500)
+```
+
+Examine the traceplots.
+
+```{r, include=TRUE, fig.align='center', fig.height=6, fig.width=9}
+plot(fit5, plotfun = "trace")
+```
+
+Have a look at the overall and group-specific parameters
+
+```{r, include=TRUE}
+fixef(fit5)
+coef(fit5)
+```
+
+## Deeper Hierarchial Models
+
+By no means are the following models deep, however, introducing a new grouping variable (despite being spurious) helps us identify more models that we can specify with `stan_glmer()`.
+
+First we indtroduce a second grouping variable `group2` which includes two groups within each group of `group`.
+
+```{r, include=TRUE}
+dat$group2 <- c(rep(1,150),rep(2,150),rep(3,150),rep(4,150),rep(5,150),rep(6,150))
+dat[140:160,]
+```
+
+In the model we fit below, the new term `group:group2` is saying to estimate `group2` specific parameters where the subgroups of `group` are `group2`.
+
+Identifying the number of parameters we are estimating helps us understand the type of model we are fitting. We can decompose the `formula` in `stan_glmer()` below into three parts:
+
+1. `x1`
+    * This is saying to estimate an overall intercept and slope (associated with the `x1` variable).
+    * $2 \mbox{ parameters}$.
+2. `(x1 | group)`
+    * This is saying to estimate an intercept and slope for each group of in `group`.
+    * $2 \mbox{ parameters} \cdot 3 \mbox{ groups} = 6 \mbox{ parameters total}$.
+3. `(x1 | group:group2)`
+    * This is saying to estimate an intercept and slope for each group in `group2` within `group`.
+    * $2 \mbox{ parameters} \cdot 3 \mbox{ groups} = 12 \mbox{ parameters total}$
+
+So we are estimating a total of $2 + 6 + 12 = 20$ parameters.
+
+```{r, include=TRUE}
+fit6 <- stan_glmer(y ~ x1 + (x1 | group) + (x1 | group:group2), data = dat, family = binomial(link = "logit"),
+                   cores = 4, iter = 500)
+summary(fit6)
+```
+
+```{r, include=TRUE}
+fixef(fit6)
+ranef(fit6)
+coef(fit6)
+```
