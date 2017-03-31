@@ -22,7 +22,9 @@ library(ggplot2)
 
 ## Introduction
 
-This note is a brief introduction to the `stan_glmer()` function in [rstanarm](https://cran.r-project.org/web/packages/rstanarm/) which allows you to fit Bayesian hierarchical models. It is a good idea to use a hierarchical model if you believe that there is some sort of nested group structure in your data. For example, let $\mathbf{y}$ and $\mathbf{X}$ refer to the pooled outcome and predictor of your model, respectively. Now suppose that you can identify $J$ groups within your model so that $\{\mathbf{y}_j, \mathbf{X}_j\}$ refers to the data associated with the $j$th group. You have several options in terms of modeling, and we will discuss them below, after simulating the data.
+This note is a brief introduction to the `stan_glmer()` function in [rstanarm](https://cran.r-project.org/web/packages/rstanarm/) which allows you to fit Bayesian hierarchical models. For the most up-to-date information on hierarchical models in rstanarm consult the vignettes [here](https://cran.r-project.org/web/packages/rstanarm/vignettes/glmer.html) and [here](https://cran.r-project.org/web/packages/rstanarm/vignettes/pooling.html).
+
+You can consider using a hierarchical model if you believe that there is some sort of nested group structure in your data. For example, let $\mathbf{y}$ and $\mathbf{X}$ refer to the pooled outcome and predictor of your model, respectively. Now suppose that you can identify $J$ groups within your model so that $\{\mathbf{y}_j, \mathbf{X}_j\}$ refers to the data associated with the $j$th group. You have several options in terms of modeling, and we will discuss them below, after simulating the data.
 
 ## Simulating data
 
@@ -63,10 +65,13 @@ head(dat)
 
 If we **completely pool** the data then we are not taking into account the different groups. So we are modeling,
 $$
-\mathbf{y} \sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_0 + \mathbf{x}\beta])
+\begin{aligned}
+\mathbf{y} &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_0 + \mathbf{x}\beta]) \\
+&\mbox{... include priors}
+\end{aligned}
 $$
 
-The problem here is that we are *not accounting for group-specific variability*. (However, if there is no identifiable group structure then this may be an appropriate model.)
+The problem here is that we are *not accounting for group-specific variability*. (However, if there is no identifiable group structure then this may be an appropriate model.) In other words, our model has low variability and high bias. 
 
 If there is **no pooling** of the data then we are modeling each group in separately. This means that we will have $J$ separate regression equations,
 $$
@@ -74,11 +79,12 @@ $$
 \mathbf{y}_1 &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_1} + \mathbf{x}_1\beta_1]) \\
 \mathbf{y}_2 &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}_2\beta_2]) \\
 &\vdots \\
-\mathbf{y}_J &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}_J\beta_J])
+\mathbf{y}_J &\sim \mbox{Bin}(1,\ \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}_J\beta_J]) \\
+&\mbox{... include priors}
 \end{aligned}
 $$
 
-The problem here is that we are *not allowing the information used in one group to explain the model of another group*.
+The problem here is that we are *not allowing the information used in one group to explain the model of another group*. Here our model has high variability and low bias.  
 
 Using the data generated above we can estimate these two models using `stan_glm()`. The completely pooled model would be,
 ```{r, include=TRUE}
@@ -123,9 +129,7 @@ $$
 \mathbf{y}_2 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}\beta]\bigg) \\
 &\vdots \\
 \mathbf{y}_J &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}\beta]\bigg) \\
-\beta &\sim \mathcal{N}(0, 2.5) \\
-\boldsymbol{\beta_{0}} &\sim \mathcal{N}(\mu_0, 1) \\
-\mu_0 &\sim \mathcal{N}(0, 10)
+&\mbox{... include priors}
 \end{aligned}
 $$
 
@@ -170,9 +174,7 @@ $$
 \mathbf{y}_2 &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0} + \mathbf{x}_{2}\beta_{2}]\bigg) \\
 &\vdots \\
 \mathbf{y}_J &\sim \mbox{Bin}\bigg(1,\ \mbox{logit}^{-1}[\beta_{0} + \mathbf{x}_{J}\beta_{J}]\bigg) \\
-\beta_0 &\sim \mathcal{N}(0,10) \\
-\boldsymbol{\beta} &\sim \mathcal{N}(\mu, 1) \\
-\mu &\sim \mathcal{N}(0, 2.5)
+&\mbox{... include priors}
 \end{aligned}
 $$
 
@@ -208,10 +210,7 @@ $$
 \mathbf{y}_2 &\sim \mbox{Bin} \bigg( 1\ , \mbox{logit}^{-1}[\beta_{0_2} + \mathbf{x}_{2}\beta_{2}] \bigg) \\
 &\vdots\\
 \mathbf{y}_J &\sim \mbox{Bin} \bigg( 1\ , \mbox{logit}^{-1}[\beta_{0_J} + \mathbf{x}_{J}\beta_{J}] \bigg) \\
-\boldsymbol{\beta_{0}} &\sim \mathcal{N}(\mu_0,1) \\
-\boldsymbol{\beta} &\sim \mathcal{N}(\mu,1) \\
-\mu_0 &\sim \mathcal{N}(0,10) \\
-\mu &\sim \mathcal{N}(10,2.5) \\
+&\mbox{... include priors}
 \end{aligned}
 $$
 
@@ -258,7 +257,7 @@ Identifying the number of parameters we are estimating helps us understand the t
     * $2 \mbox{ parameters} \cdot 3 \mbox{ groups} = 6 \mbox{ parameters total}$.
 3. `(x1 | group:group2)`
     * This is saying to estimate an intercept and slope for each group in `group2` within `group`.
-    * $2 \mbox{ parameters} \cdot 3 \mbox{ groups} = 12 \mbox{ parameters total}$
+    * $2 \mbox{ parameters} \cdot 3 \mbox{ groups} \cdot \mbox{ groups2} = 12 \mbox{ parameters total}$
 
 So we are estimating a total of $2 + 6 + 12 = 20$ parameters.
 

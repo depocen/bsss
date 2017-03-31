@@ -1,0 +1,114 @@
+---
+title: "Brief Intro to BRMS"
+author: "Imad Ali"
+date: "3/23/2017"
+output:
+  html_document:
+    highlight: pygments
+    theme: spacelab
+    toc: true
+  pdf_document:
+    highlight: pygments
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rstanarm)
+library(bayesplot)
+library(loo)
+library(ggplot2)
+library(brms)
+```
+
+## Introduction
+
+A brief introduction to using brm to create a Stan file. First we generate binary data suitable for logistic regression below.
+
+```{r, include=TRUE}
+remove(list = ls())
+# inverse logit function
+invlogit <- function(x) {
+  return(exp(x)/(1+exp(x)))
+}
+# coefficients generated from prior distributions
+b10 <- rnorm(1,0,1)  # group 1 intercept
+b11 <- rnorm(1,1,1)  # group 1 slope
+
+b20 <- rnorm(1,0,1)  # group 2 intercept
+b21 <- rnorm(1,1,1)  # group 2 slope
+
+b30 <- rnorm(1,0,1)  # group 2 intercept
+b31 <- rnorm(1,1,1)  # group 2 slope
+# for ease of comparison post-estimation
+parameters <- rbind("(Intercept)" = c(b10, b20, b30),
+                    "x1" = c(b11, b21, b31))
+colnames(parameters) <- c("model1", "model2", "model3")
+# generate data
+n <- 900
+X <- data.frame(matrix(c(c(rep(1,n/3),rep(2,n/3),rep(3,n/3)),rnorm(n,0,1)),ncol = 2))
+names(X) <- c("group","x1")
+y1 <- invlogit(b10+b11*X[which(X$group==1),2])
+y2 <- invlogit(b20+b21*X[which(X$group==2),2])
+y3 <- invlogit(b30+b31*X[which(X$group==3),2])
+y <- c(y1,y2,y3)
+dat <- data.frame(cbind(rbinom(n,1,y),X))
+names(dat)[1] <- "y"
+head(dat)
+```
+
+## Fitting a Hierarchical Model
+
+```{r, include=TRUE}
+library(rstan)
+library(brms)
+# fitting a hierarchical model with group specific intercepts.
+fit1 <- brm(y ~ x1 + (1 | group), data = dat, family = "bernoulli", chains = 4, iter = 500)
+```
+
+We can take a look at the model fit object.
+
+```{r, include=TRUE}
+fit1
+```
+
+We can examine the various coefficient estimates.
+
+```{r, include=TRUE}
+fixef(fit1)
+ranef(fit1)
+coef(fit1)
+```
+
+## Generating Stan Code
+
+You can generate a Stan file with the `brms::make_stancode()` function and the `rstan::stan_model()` function. Note that you will also need to generate the data with the `brms::make_standata()` function.
+
+```{r, include=TRUE}
+# generate a stan model.
+hier_stan_model <- brms::make_stancode(y ~ x1 + (1 | group), data = dat, family = "bernoulli")
+# compile the model.
+hier_stan_model_comp <- stan_model(model_code = hier_stan_model)
+# convert the data.
+hier_stan_data <- brms::make_standata(y ~ x1 + (1 | group), data = dat, family = "bernoulli")
+```
+
+We can take a look at the Stan file.
+
+```{r, include=TRUE}
+print(hier_stan_model_comp)
+```
+
+If we copied this model into a .stan file then we could make a few changes to the various Stan blocks if necessary.
+
+Fit the model and examine the output.
+```{r, include=TRUE}
+# fit the model using rstan.
+fit2 <- rstan::sampling(hier_stan_model_comp, data = hier_stan_data, chains = 4, iter = 500)
+fit2
+```
+
+Inspect the traceplot.
+```{r, include=TRUE, fig.align='center', fig.height=6, fig.width=9}
+rstan::traceplot(fit2)
+```
