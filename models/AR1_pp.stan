@@ -1,0 +1,25 @@
+// AR(1) Model with posterior predictions
+data {
+  int<lower=0> N;   // number of observations
+  real y[N];        // time series data
+}
+parameters {
+  real<lower=-1,upper=1> rho;   // parameter on lag term
+  real alpha;                   // constant term
+  real<lower=0> sigma;          // sd of error
+}
+model {
+  // likelihood
+  for (n in 2:N)
+    target+= normal_lpdf(y[n] | alpha + rho * y[n-1], sigma);
+  // priors
+  target+= normal_lpdf(rho | 0 , 0.5);
+  target+= normal_lpdf(alpha | 0 , 1);
+}
+generated quantities {
+  vector[N-1] y_rep;
+  // posterior predictions
+  for (n in 1:(N-1))
+    y_rep[n] = normal_rng(alpha + rho * y[n], sigma);
+    // recall: obs n is predicting obs n+1
+}

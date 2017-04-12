@@ -1,0 +1,336 @@
+---
+title: "Generated Quantities in RStan"
+author: "Imad Ali"
+date: "04/10/2017"
+header-includes:
+   - \usepackage{blkarray}
+output:
+  html_document:
+    highlight: pygments
+    theme: spacelab
+    toc: true
+  pdf_document:
+    highlight: pygments
+    toc: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rstan)
+library(loo)
+```
+
+## Introduction
+
+This note covers how to extract samples from an [RStan](https://cran.r-project.org/web/packages/rstan/) object and some situations in which you might want to use the **generated quantities** block in your Stan file. Specifically we cover generating posterior predictions and evaluating the point-wise posterior log likelihood of an autoregressive process with one time lag, known as AR(1). AR(p) processes are limited in their ability to model time series and models such as [vector auto regression](https://en.wikipedia.org/wiki/Vector_autoregression) and [gaussian processes](https://en.wikipedia.org/wiki/Gaussian_process) tend to be much better alternatives (both of which can be fit in Stan).
+
+## AR(1) Time Series Model
+
+The motivation for an AR(1) model is if you believe your outcome variable at time $t$ can be explained by the outcome variable at time $t-1$. For example, we may believe that the monthly unemployment rate of a country depends on the previous months rate.
+
+Mathematically we define an AR(1) process as,
+$$
+\begin{align}
+y_t \sim \mathcal{N}(\alpha + \rho y_{t-1}, \sigma)
+\end{align}
+$$
+where $\alpha$, $\rho$, and $\sigma$ are parameters. To make sure the series is [stationary](https://en.wikipedia.org/wiki/Stationary_process) (i.e. well behaved and not explosive) we can bound the parameter on the lag variable such that $\rho \in [-1,1]$.
+
+This is a [generative model](https://en.wikipedia.org/wiki/Generative_model) so we can simulate the data and see if we can recover the parameters by fitting the model in Stan.
+
+```{r, include=TRUE}
+# AR(1) data generation process
+alpha <- 3
+rho <- 0.6
+dat <- list(N = 200)
+dat$y[1] <- 1
+for (n in 2:dat$N)
+  dat$y[n] <- alpha + rho * dat$y[n-1] + rnorm(1, 0, 1)
+```
+
+Our Stan model will look something like,
+
+```{stan, include=TRUE, eval=FALSE, output.var="ar1"}
+// AR(1) Model
+data {
+  int<lower=0> N;   // number of observations
+  real y[N];        // time series data
+}
+parameters {
+  real<lower=-1,upper=1> rho;   // parameter on lag term
+  real alpha;                   // constant term
+  real<lower=0> sigma;          // sd of error
+}
+model {
+  // likelihood
+  for (n in 2:N)
+    target+= normal_lpdf(y[n] | alpha + rho * y[n-1], sigma);
+  // priors
+  target+= normal_lpdf(rho | 0 , 0.5);
+  target+= normal_lpdf(alpha | 0 , 1);
+}
+
+```
+
+Notice that we've put bounds on the data and parameters using angle brackets `<...>`.
+
+```{r, include=TRUE, results="hide"}
+fit0 <- stan("/Users/imad/desktop/stan/bsss/models/AR1.stan", data = dat,
+             cores = 4, iter = 500, chains = 4)
+```
+
+We can take a look at the diagnostics by printing `fit0` to the console and examining the effective sample sizes and $\hat{R}$. We can also look at the traceplots to visually determine whether the chains have converged.
+
+```{r, include=TRUE, fig.align="center", fig.width=9, fig.height=3}
+retro <- c(rgb(255, 102, 136, alpha = 150, max = 255),
+           rgb(187, 102, 136, alpha = 150, max = 255),
+           rgb(119, 102, 136, alpha = 150, max = 255),
+           rgb(51, 102, 136, alpha = 150, max = 255))
+print(fit0, digits = 2)
+traceplot(fit0) + scale_color_manual(values = retro)
+```
+
+We can extract the samples from `fit0` as a matrix as follows,
+```{r, include=TRUE}
+post <- as.matrix(fit0)
+head(post)
+dim(post)
+```
+
+Notice that the number of rows of `post` are equal to `(iter - warmup) * chains` = 1000 posterior samples. `lp__` is the log of the total probability density/mass function up to some normalizing constant. We can use these samples plot the distributions (i.e. histograms) of and the credible intervals associated with each parameter. In the plots below the blue lines denote the 50% credible interval. 
+
+```{r, include=TRUE, fig.align="center", fig.width=9, fig.height=3}
+par(mfrow=c(1,3), oma=c(0,0,2,0))
+# distribution for alpha
+hist(post[,"alpha"], breaks = 50, col = "#808080", border = FALSE,
+     main = expression(paste("Distribution of ", alpha)),
+     xlab = expression(alpha))
+alpha50 <- quantile(post[,"alpha"], prob = c(0.25, 0.75), names = FALSE)
+for (i in 1:2) {
+  abline(v = alpha50[i], lty = 2, lwd = 2, col = "#40D2FE")
+}
+# distribution for rho
+hist(post[,"rho"], breaks = 50, col = "#808080", border = FALSE,
+     main = expression(paste("Distribution of ", rho)),
+     xlab = expression(rho))
+rho50 <- quantile(post[,"rho"], prob = c(0.25, 0.75), names = FALSE)
+for (i in 1:2) {
+  abline(v = rho50[i], lty = 2, lwd = 2, col = "#40D2FE")
+}
+# distribution for sigma
+hist(post[,"sigma"], breaks = 50, col = "#808080", border = FALSE,
+     main = expression(paste("Distribution of ", sigma)),
+     xlab = expression(sigma))
+sigma50 <- quantile(post[,"sigma"], prob = c(0.25, 0.75), names = FALSE)
+for (i in 1:2) {
+  abline(v = sigma50[i], lty = 2, lwd = 2, col = "#40D2FE")
+}
+title("Marginal Posterior Distributions of Parameters", outer = TRUE, cex.main = 1.5)
+```
+
+## Posterior Predictions
+
+Using the `generated quantities{...}` block we can generate posterior predictions to see if our model appropriately fits the data. Since we modeled the data using the normal distribution we can generate predictions with the `normal_rng()` function. The Stan model that implements this is provided below.
+
+```{stan, include=TRUE, eval=FALSE, output.var="ar1_pp"}
+// AR(1) Model with posterior predictions
+data {
+  int<lower=0> N;   // number of observations
+  real y[N];        // time series data
+}
+parameters {
+  real<lower=-1,upper=1> rho;   // parameter on lag term
+  real alpha;                   // constant term
+  real<lower=0> sigma;          // sd of error
+}
+model {
+  // likelihood
+  for (n in 2:N)
+    target+= normal_lpdf(y[n] | alpha + rho * y[n-1], sigma);
+  // priors
+  target+= normal_lpdf(rho | 0 , 0.5);
+  target+= normal_lpdf(alpha | 0 , 1);
+}
+generated quantities {
+  vector[N-1] y_rep;
+  // posterior predictions
+  for (n in 1:(N-1))
+    y_rep[n] = normal_rng(alpha + rho * y[n], sigma);
+    // recall: obs n is predicting obs n+1
+}
+
+
+```
+
+```{r, include=TRUE, results="hide"}
+fit1 <- stan("/Users/imad/desktop/stan/bsss/models/AR1_pp.stan", data = dat,
+             cores = 4, iter = 500, chains = 4)
+```
+
+```{r, include=TRUE, fig.align="center", fig.width=9, fig.height=3}
+traceplot(fit1, pars = c("alpha", "rho", "sigma")) + scale_color_manual(values = retro)
+print(fit1, pars = c("alpha", "rho", "sigma"))
+```
+
+We can extract the matrix of posterior samples as mentioned above. Notice that we now have a bunch of `y_rep` values. (Essentially we have a matrix of y_rep values the dimension of which is the number of samples by the length of `y_rep`.) This is because for each sampled value of the parameter we can generate a prediction. 
+
+```{r, include=TRUE}
+# extract the samples as a matrix
+post <- as.matrix(fit1)
+colnames(post)[1:100]
+```
+
+Below we plot the actual series along with the 50% and 90% credible intervals, and the column-wise mean of the posterior predictions.
+
+```{r, include=TRUE, fig.align="center", fig.width=9, fig.height=6}
+# selector for y_rep columns
+sel <- grep("y_rep", colnames(post))
+# compute the credible intervals
+ci50 <- matrix(NA, nrow = length(sel), ncol = 2)
+ci90 <- matrix(NA, nrow = length(sel), ncol = 2)
+for (i in 1:length(sel)) {
+  ci50[i,] <- quantile(post[,sel[i]], prob = c(0.25, 0.75), names = FALSE)
+  ci90[i,] <- quantile(post[,sel[i]], prob = c(0.05, 0.95), names = FALSE)
+}
+# plot the true series along with posterior predictions
+plot(0, type= "n", xlim = c(0,length(dat$y)), ylim = range(post[, sel]),
+     xlab = "time", ylab = "y", main = "AR(1) Process (simulated data)")
+# plot credible intervals
+t <- 2:dat$N
+polygon(c(rev(t), t), c(rev(ci90[,1]), ci90[,2]), col = "#FF668830", border = FALSE)
+polygon(c(rev(t), t), c(rev(ci50[,1]), ci50[,2]), col = "#FF668880", border = FALSE)
+# plot avg of predictions
+lines(2:dat$N, colMeans(post[,sel]), col = "#40D2FE", lwd = 2)
+# plot true series
+lines(dat$y, col = "#808080", lwd = 2)
+legend("bottomright", c("series", "pred (avg)", "pred (50% CI)", "pred (90% CI)"),
+       col = c("#808080", "#40D2FE", "#FF668880", "#FF668830"),
+       lwd = c(2,2,2))
+```
+
+## Point-Wise Log Likelihood
+
+Another useful quantity to generate is the log likelihood of the posterior. Once we do this we can extract these values with the loo package (or manually) and evalute the expected predictive accuracy which can be used to compare models. Since we modeled the data using the normal distribution we can use the `normal_lpdf()` function to evaluate the posterior log likelihood at each sampled parameter value. This is implemented in the Stan file below.
+
+```{stan, include=TRUE, eval=FALSE, output.var="ar1_pp_ll"}
+// AR(1) Model with posterior predictions and log likelihood
+data {
+  int<lower=0> N;   // number of observations
+  real y[N];        // time series data
+}
+parameters {
+  real<lower=-1,upper=1> rho;   // parameter on lag term
+  real alpha;                   // constant term
+  real<lower=0> sigma;          // sd of error
+}
+model {
+  // likelihood
+  for (n in 2:N)
+    target+= normal_lpdf(y[n] | alpha + rho * y[n-1], sigma);
+  // priors
+  target+= normal_lpdf(rho | 0 , 0.5);
+  target+= normal_lpdf(alpha | 0 , 1);
+}
+generated quantities {
+  vector[N-1] y_rep;
+  vector[N-1] log_lik;
+  for (n in 1:(N-1)) {
+    // posterior predictions
+    y_rep[n] = normal_rng(alpha + rho * y[n], sigma);
+    // log likelihood
+    log_lik[n] = normal_lpdf(y[n] | alpha + rho * y[n], sigma);
+  }
+}
+
+```
+
+Now we need to fit the model and check the diagnostics.
+
+```{r, include=TRUE, results="hide"}
+fit2 <- stan("/Users/imad/desktop/stan/bsss/models/AR1_pp_ll.stan", data = dat,
+             cores = 4, iter = 500, chains = 4)
+```
+
+
+```{r, include=TRUE}
+print(fit2, pars = c("alpha", "rho", "sigma"))
+```
+
+Using the `extract_log_lik()` function in the **loo** pacakge we can easily extract the point-wise log likelihood values and evaluate `elpd_loo` (the expected predictive accuracy).
+
+```{r, include=TRUE}
+library(loo)
+ll_mat <- extract_log_lik(fit2, parameter_name = "log_lik")
+loo(ll_mat[,-1])
+```
+
+## Generalizing to AR(p)
+
+The above model works reasonably well but they are not written efficiently. Here are a few reasons why,
+
+1. The model is only useful for AR processes with one lag.
+2. Loops are being used in the model block. With large data sets and complex models we should vectorize variables and use linear algebra where we can for computational efficiency.
+3. We have fixed the parameters on the priors when we could easily pass these in as data.
+
+The Stan model below presents one way to implement an AR(p) model. We utilize the `transformed data {...}` block to transform the time series `y` based on its dimension (`N`) and the number of lags the user declares (`P`). (Note, at the beginning of the transformed data block we need to define all the variables that we want to create within the block.)
+
+```{stan, include=TRUE, eval=FALSE, output.var = "arp"}
+// AR(p) model
+data {
+  int<lower=0> N;         // length of series
+  int<lower=1> P;         // number of lags
+  vector[N] y;            // time series
+  real loc_alpha;         // prior loc on alpha
+  real scale_alpha;       // prior scale on alpha
+  vector[P] loc_rho;      // prior loc on rho
+  vector[P] scale_rho;    // prior scale on rho
+}
+transformed data {
+  // transform data to accommodate P-lag process
+  vector[N-P] y_trans;    // outcome of series
+  matrix[N-P, P] Y;       // matrix of (lagged) predictors
+  for (n in 1:(N-P)) {
+    y_trans[n] = y[n+P];
+    for (p in 1:P)
+      Y[n,p] = y[(P + n) - p];
+  }
+}
+parameters {
+  real alpha;                         // intercept
+  vector<lower=-1,upper=1>[P] rho;    // vector of parameters
+  real<lower=0> sigma;                // sd of error
+}
+model {
+  // likelihood
+  target+= normal_lpdf(y_trans | alpha + Y * rho, sigma);
+  // priors
+  target+= normal_lpdf(rho | loc_rho, scale_rho);
+  target+= normal_lpdf(alpha | loc_alpha, scale_alpha);
+  target+= normal_lpdf(sigma | 0, 1);
+}
+generated quantities {
+  vector[N-P] y_rep;
+  for (n in 1:(N-P))
+    y_rep[n] = normal_rng(alpha + Y[n,] * rho, sigma);
+}
+
+```
+
+Below we fit an AR(3) model on the data that was generated by an AR(1) process.
+
+```{r, include=TRUE, results="hide"}
+# That data block now includes more elements and we need to pass those in
+dat$P <- 3
+dat$loc_alpha <- 0
+dat$scale_alpha <- 1
+dat$loc_rho <- rep(0, dat$P)
+dat$scale_rho <- rep(0.1, dat$P)
+# fit the AR(p) model
+fit3 <- stan("/Users/imad/desktop/stan/bsss/models/ARp.stan", data = dat,
+             cores = 4, iter = 500, chains = 4)
+```
+
+```{r, include=TRUE}
+print(fit3, pars = c("alpha", "rho", "sigma"))
+```
