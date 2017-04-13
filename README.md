@@ -10,3 +10,4 @@ This repository consists of some supplementary teaching material for the course,
 - [x] Basic Hierarchical Regression in RStanARM (`hierarchical_intro.*`)
 - [x] Brief Introduction to RStan (`rstan_intro.*`)
 - [x] Generated Quantities in RStan (`rstan_genquant.*`)
+- [ ] Dealing with Missing Data

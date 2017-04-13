@@ -120,14 +120,16 @@ names(dat)
 print(dat)
 ```
 
-Now we can call the stan model and data into `stan()`. Here we specify `cores = 4` since the machine that is running this document has four cores. For speed we also reduce the number of iterations to 500 (compared to the default of 2000).
+Now we can call the stan model and data into `stan()`. For speed we reduce the number of iterations to 500 (compared to the default of 2000).
 
 Note, if any change has been made to the Stan file (including when you first write your Stan file) it will need to be recomplied. You might notice that there is no output for a while when you run `stan()`. This is because your Stan file is being translated/complied into C++ code and, depending on how complex your model is, this can take some time.
 
 ```{r, include=TRUE, results="hide"}
 library(rstan)
+rstan_options(auto_write = TRUE)             # complied model saved in same directory as stan file
+options(mc.cores = parallel::detectCores())  # run parallel::detectCores() chains in parallel
 fit0 <- stan("/Users/imad/desktop/stan/bsss/models/8schools_0.stan", data = dat,
-             cores = 4, iter = 500, chains = 4)
+             iter = 500, chains = 4)
 ```
 
 Make sure that you always check the diagnostics of your model ($\hat{R}$ (`Rhat`), effective sample size (`n_eff`), traceplots, etc.). Run your model several times to ensure that the diagnostics you're seeing are consistent. 
@@ -176,7 +178,7 @@ model {
 
 ```{r, include=TRUE, results="hide"}
 fit1 <- stan("/Users/imad/desktop/stan/bsss/models/8schools_1.stan", data = dat,
-             cores = 4, iter = 500, chains = 4)
+             iter = 500, chains = 4)
 ```
 
 ```{r, include=TRUE, fig.align="center", fig.width=9, fig.height=6}
@@ -227,7 +229,7 @@ model {
 
 ```{r, include=TRUE, results="hide"}
 fit2 <- stan("/Users/imad/desktop/stan/bsss/models/8schools_2.stan", data = dat,
-             cores = 4, iter = 500, chains = 4)
+             iter = 500, chains = 4)
 ```
 
 Here, `mu` controls the degree of pooling for the individual `theta` values. 
@@ -283,7 +285,7 @@ model {
 
 ```{r, include=TRUE, results="hide"}
 fit3 <- stan("/Users/imad/desktop/stan/bsss/models/8schools_3.stan", data = dat,
-             cores = 4, iter = 500, chains = 4)
+             iter = 500, chains = 4)
 ```
 
 The variables `mu` and `tau` control the degree of pooling of the individual `theta` values for each school. 
@@ -325,7 +327,7 @@ model {
 
 ```{r, include=TRUE, results="hide"}
 fit4 <- stan("/Users/imad/desktop/stan/bsss/models/8schools_4.stan", data = dat,
-             cores = 4, iter = 500, chains = 4)
+             iter = 500, chains = 4)
 ```
 
 The issues when fitting this sort of model should be obvious when looking at the diagnostics. Visually, we see poor mixing among chains.

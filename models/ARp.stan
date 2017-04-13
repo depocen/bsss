@@ -1,7 +1,7 @@
 // AR(p) model
 data {
   int<lower=0> N;         // length of series
-  int<lower=1> P;         // number of lags
+  int<lower=1,upper=N> P; // number of lags
   vector[N] y;            // time series
   real loc_alpha;         // prior loc on alpha
   real scale_alpha;       // prior scale on alpha
